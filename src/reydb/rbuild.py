@@ -91,7 +91,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         """
 
         # Generate.
-        sql = f'CREATE DATABASE `{name}` CHARACTER SET {character} COLLATE {collate}'
+        sql = f'CREATE DATABASE "{name}" CHARACTER SET {character} COLLATE {collate}'
 
         return sql
 
@@ -140,16 +140,16 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
             case 'first':
                 position = ' FIRST'
             case _:
-                position = f' AFTER `{position}`'
+                position = f' AFTER "{position}"'
 
         ## Old name.
         if old_name is None:
             old_name = ''
         else:
-            old_name = f'`{old_name}` '
+            old_name = f'"{old_name}" '
 
         # Generate.
-        sql = f'{old_name}`{name}` {type_}{constraint}{comment}{position}'
+        sql = f'{old_name}"{name}" {type_}{constraint}{comment}{position}'
 
         return sql
 
@@ -204,20 +204,20 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## Fields.
         sql_fields = ', '.join(
             [
-                f'`{field}`'
+                f'"{field}"'
                 for field in fields
             ]
         )
 
         ## Join.
-        sql = f'{type_} `{name}` ({sql_fields}){method}{comment}'
+        sql = f'{type_} "{name}" ({sql_fields}){method}{comment}'
 
         return sql
 
 
     def get_sql_create_table(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: FieldSet | list[FieldSet],
         primary: str | list[str] | None = None,
         indexes: IndexSet | list[IndexSet] | None = None,
@@ -232,9 +232,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Fields set table.
             - `Key 'name'`: Field name, required.
             - `Key 'type'`: Field type, required.
@@ -277,10 +275,6 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
         if fields.__class__ == dict:
             fields = [fields]
         if primary.__class__ == str:
@@ -311,7 +305,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         if primary is not None:
             keys = ', '.join(
                 [
-                    f'`{key}`'
+                    f'"{key}"'
                     for key in primary
                 ]
             )
@@ -335,7 +329,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## Join.
         sql_fields = ',\n    '.join(sql_fields)
         sql = (
-            f'CREATE TABLE `{database}`.`{table}`(\n'
+            f'CREATE TABLE "{table}"(\n'
             f'    {sql_fields}\n'
             f') ENGINE={engine} AUTO_INCREMENT={increment} CHARSET={charset} COLLATE={collate}{sql_comment}'
         )
@@ -345,7 +339,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
     def get_sql_create_view(
         self,
-        path: str | tuple[str, str],
+        table: str,
         select: str
     ) -> str:
         """
@@ -353,9 +347,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         select : View select SQL.
         execute : Whether directly execute.
 
@@ -364,22 +356,16 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         SQL.
         """
 
-        # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
-
         # Generate SQL.
         select = select.replace('\n', '\n    ')
-        sql = f'CREATE VIEW `{database}`.`{table}` AS (\n    {select}\n)'
+        sql = f'CREATE VIEW "{table}" AS (\n    {select}\n)'
 
         return sql
 
 
     def get_sql_create_view_stats(
         self,
-        path: str | tuple[str, str],
+        table: str,
         items: list[dict]
     ) -> str:
         """
@@ -387,9 +373,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         items : Items set table.
             - `Key 'name'`: Item name, required.
             - `Key 'select'`: Item select SQL, must only return one value, required.
@@ -407,7 +391,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         # Generate select SQL.
         item_first = items[0]
-        select_first = "SELECT '%s' AS `item`,\n(\n    %s\n) AS `value`,\n%s AS `comment`" % (
+        select_first = 'SELECT 0 AS "index",\n \'%s\' AS "item",\n(\n    %s\n)::TEXT AS "value",\n%s AS "comment"' % (
             item_first['name'],
             item_first['select'].replace('\n', '\n    '),
             (
@@ -417,7 +401,8 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
             )
         )
         selects = [
-            "SELECT '%s',\n(\n    %s\n),\n%s" % (
+            "SELECT %s, '%s',\n(\n    %s\n)::TEXT,\n%s" % (
+                index,
                 item['name'],
                 item['select'].replace('\n', '\n    '),
                 (
@@ -426,13 +411,16 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
                     else "'%s'" % item['comment']
                 )
             )
-            for item in items[1:]
+            for index, item in enumerate(items[1:], 1)
         ]
         selects[0:0] = [select_first]
         select = '\nUNION\n'.join(selects)
+        select += '\nORDER BY "index"'
+        select = select.replace('\n', '\n    ')
+        select = f'SELECT "item", "value", "comment"\nFROM (\n    {select}\n) AS "T"'
 
         # Create.
-        sql = self.get_sql_create_view(path, select)
+        sql = self.get_sql_create_view(table, select)
 
         return sql
 
@@ -455,23 +443,21 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         """
 
         # Generate.
-        sql = f'DROP DATABASE `{database}`'
+        sql = f'DROP DATABASE "{database}"'
 
         return sql
 
 
     def get_sql_drop_table(
         self,
-        path: str | tuple[str, str]
+        table: str
     ) -> str:
         """
         Get SQL of drop table.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         execute : Whether directly execute.
 
         Returns
@@ -479,30 +465,22 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         SQL.
         """
 
-        # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
-
         # Generate.
-        sql = f'DROP TABLE `{database}`.`{table}`'
+        sql = f'DROP TABLE "{table}"'
 
         return sql
 
 
     def get_sql_drop_view(
         self,
-        path: str | tuple[str, str]
+        table: str
     ) -> str:
         """
         Get SQL of drop view.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         execute : Whether directly execute.
 
         Returns
@@ -510,14 +488,8 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         SQL.
         """
 
-        # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
-
         # Generate SQL.
-        sql = 'DROP VIEW `%s`.`%s`' % (database, table)
+        sql = f'DROP VIEW "{table}"'
 
         return sql
 
@@ -562,14 +534,14 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
             sql_collate = f' COLLATE {collate}'
 
         ## Join.
-        sql = f'ALTER DATABASE `{database}`{sql_character}{sql_collate}'
+        sql = f'ALTER DATABASE "{database}"{sql_character}{sql_collate}'
 
         return sql
 
 
     def get_sql_alter_table_add(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: FieldSet | list[FieldSet] | None = None,
         primary: str | list[str] | None = None,
         indexes: IndexSet | list[IndexSet] | None = None
@@ -579,9 +551,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Fields set table.
             - `Key 'name'`: Field name, required.
             - `Key 'type'`: Field type, required.
@@ -618,10 +588,6 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
         if fields.__class__ == dict:
             fields = [fields]
         if primary.__class__ == str:
@@ -655,7 +621,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         if primary is not None:
             keys = ', '.join(
                 [
-                    f'`{key}`'
+                    f'"{key}"'
                     for key in primary
                 ]
             )
@@ -673,7 +639,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## Join.
         sql_content = ',\n    ADD '.join(sql_content)
         sql = (
-            f'ALTER TABLE `{database}`.`{table}`\n'
+            f'ALTER TABLE "{table}"\n'
             f'    ADD {sql_content}'
         )
 
@@ -682,7 +648,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
     def get_sql_alter_table_drop(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: str | list[str] | None = None,
         primary: bool = False,
         indexes: str | list[str] | None = None
@@ -692,9 +658,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Delete fields name.
         primary : Whether delete primary key.
         indexes : Delete indexes name.
@@ -706,10 +670,6 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
         if fields.__class__ == str:
             fields = [fields]
         if indexes.__class__ == str:
@@ -742,7 +702,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## Join.
         sql_content = ',\n    DROP '.join(sql_content)
         sql = (
-            f'ALTER TABLE `{database}`.`{table}`\n'
+            f'ALTER TABLE "{table}"\n'
             f'    DROP {sql_content}'
         )
 
@@ -751,7 +711,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
     def get_sql_alter_table_change(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: FieldSet | list[FieldSet] | None = None,
         rename: str | None = None,
         engine: str | None = None,
@@ -764,9 +724,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Fields set table.
             - `Key 'name'`: Field name, required.
             - `Key 'type'`: Field type, required.
@@ -794,10 +752,6 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
         if fields.__class__ == dict:
             fields = [fields]
 
@@ -811,7 +765,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         ## Rename.
         if rename is not None:
-            sql_rename = f'RENAME `{database}`.`{rename}`'
+            sql_rename = f'RENAME "{rename}"'
             sql_content.append(sql_rename)
 
         ## Fields.
@@ -859,7 +813,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## Join.
         sql_content = ',\n    '.join(sql_content)
         sql = (
-            f'ALTER TABLE `{database}`.`{table}`\n'
+            f'ALTER TABLE "{table}"\n'
             f'    {sql_content}'
         )
 
@@ -868,7 +822,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
     def get_sql_alter_view(
         self,
-        path: str | tuple[str, str],
+        table: str,
         select: str
     ) -> str:
         """
@@ -876,9 +830,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         select : View select SQL.
         execute : Whether directly execute.
 
@@ -887,30 +839,22 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         SQL.
         """
 
-        # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
-
         # Generate SQL.
-        sql = 'ALTER VIEW `%s`.`%s` AS\n%s' % (database, table, select)
+        sql = f'ALTER VIEW `{table}` AS\n{select}'
 
         return sql
 
 
     def get_sql_truncate_table(
         self,
-        path: str | tuple[str, str]
+        table: str
     ) -> str:
         """
         Get SQL of truncate table.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         execute : Whether directly execute.
 
         Returns
@@ -918,14 +862,8 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         SQL.
         """
 
-        # Parameter.
-        if type(path) == str:
-            database, table = self.engine.database, path
-        else:
-            database, table = path
-
         # Generate.
-        sql = f'TRUNCATE TABLE `{database}`.`{table}`'
+        sql = f'TRUNCATE TABLE "{table}"'
 
         return sql
 
@@ -985,7 +923,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
 
         # Get.
         table = model._get_table()
-        text = f'TABLE `{self.engine.database}`.`{table}`'
+        text = f'TABLE "{table}"'
         if 'mysql_charset' in table.kwargs:
             text += f" | CHARSET '{table.kwargs['mysql_charset']}'"
         if table.comment:
@@ -994,7 +932,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## Field.
         text += '\n' + '\n'.join(
             [
-                f'    FIELD `{column.name}` : {column.type}' + (
+                f'    FIELD {column.name} : {column.type}' + (
                     ' | NOT NULL'
                     if (
                         not column.nullable
@@ -1026,7 +964,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
                 [
                     '    NORMAL INDEX: ' + ', '.join(
                         [
-                            f'`{column.name}`'
+                            column.name
                             for column in index.expressions
                         ]
                     )
@@ -1044,7 +982,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         else '    PRIMARY KEY CONSTRAIN: '
                     ) + ', '.join(
                         [
-                            f'`{column.name}`'
+                            column.name
                             for column in constraint.columns
                         ]
                     )
@@ -1128,14 +1066,6 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
 
         # Database.
         for params in databases:
-            database = params['name']
-
-            ## Exist.
-            if (
-                skip
-                and self.engine.schema.exist(database)
-            ):
-                continue
 
             ## SQL.
             sql = self.get_sql_create_database(**params)
@@ -1148,7 +1078,7 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
             self.engine.execute(sql)
 
             ## Report.
-            text = f"Database '{database}' build completed."
+            text = f"Database '{params['name']}' build completed."
             print(text)
 
         # Table.
@@ -1156,16 +1086,12 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
 
             ## Parameter.
             if type(params) == dict:
-                path: str | tuple[str, str] = params['path']
-                if type(path) == str:
-                    database, table = self.engine.database, path
-                else:
-                    database, table = path
+                table: str = params['table']
 
                 ### Exist.
                 if (
                     skip
-                    and self.engine.schema.exist(database, table)
+                    and self.engine.catalog.exist(table)
                 ):
                     continue
 
@@ -1181,13 +1107,12 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
 
             ## ORM.
             else:
-                database = self.engine.database
                 table = params._get_table().name
 
                 ## Exist.
                 if (
                     skip
-                    and self.engine.schema.exist(self.engine.database, table)
+                    and self.engine.catalog.exist(table)
                 ):
                     continue
 
@@ -1200,26 +1125,22 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
                 self.create_orm_table(params)
 
             ## Report.
-            text = f"Table '{table}' of database '{database}' build completed."
+            text = f"Table '{table}' of database '{self.engine.database}' build completed."
             print(text)
             refresh_schema = True
 
         # Refresh schema.
         if refresh_schema:
-            self.engine.schema()
+            self.engine.catalog()
+            refresh_schema = False
 
         # View.
         for params in views:
-            path = params['path']
-            if type(path) == str:
-                database, table = self.engine.database, path
-            else:
-                database, table = path
 
             ## Exist.
             if (
                 skip
-                and self.engine.schema.exist(database, table)
+                and self.engine.catalog.exist(params['table'])
             ):
                 continue
 
@@ -1234,21 +1155,17 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
             self.engine.execute(sql)
 
             ## Report.
-            text = f"View '{table}' of database '{database}' build completed."
+            text = f"View '{params['table']}' of database '{self.engine.database}' build completed."
             print(text)
+            refresh_schema = True
 
         # View stats.
         for params in views_stats:
-            path = params['path']
-            if type(path) == str:
-                database, table = self.engine.database, path
-            else:
-                database, table = path
 
             ## Exist.
             if (
                 skip
-                and self.engine.schema.exist(database, table)
+                and self.engine.catalog.exist(params['table'])
             ):
                 continue
 
@@ -1263,8 +1180,13 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
             self.engine.execute(sql)
 
             ## Report.
-            text = f"View '{table}' of database '{database}' build completed."
+            text = f"View '{params['table']}' of database '{self.engine.database}' build completed."
             print(text)
+            refresh_schema = True
+
+        # Refresh schema.
+        if refresh_schema:
+            self.engine.catalog()
 
 
     __call__ = build
@@ -1345,14 +1267,6 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
 
         # Database.
         for params in databases:
-            database = params['name']
-
-            ## Exist.
-            if (
-                skip
-                and await self.engine.schema.exist(database)
-            ):
-                continue
 
             ## SQL.
             sql = self.get_sql_create_database(**params)
@@ -1365,53 +1279,20 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
             await self.engine.execute(sql)
 
             ## Report.
-            text = f"Database '{database}' build completed."
+            text = f"Database '{params['name']}' build completed."
             print(text)
 
         # Table.
         for params in tables:
 
-            ## ORM.
-            if (
-                is_instance(params)
-                and isinstance(params, rorm.Model)
-                or issubclass(params, rorm.Model)
-            ):
-                database = self.engine.database
-                table = params._get_table().name
-
-                ## Exist.
-                if (
-                    skip
-                    and await self.engine.schema.exist(self.engine.database, table)
-                ):
-                    continue
-
-                ## Confirm.
-                if ask:
-                    text = self.get_orm_table_text(params)
-                    self.input_confirm_build(text)
-
-                ## Execute.
-                await self.create_orm_table(params)
-                refresh_schema = True
-
-                ## Report.
-                text = f"Table '{table}' of database '{database}' build completed."
-                print(text)
-
             ## Parameter.
-            else:
-                path: str | tuple[str, str] = params['path']
-                if type(path) == str:
-                    database, table = self.engine.database, path
-                else:
-                    database, table = path
+            if type(params) == dict:
+                table: str = params['table']
 
                 ### Exist.
                 if (
                     skip
-                    and await self.engine.schema.exist(database, table)
+                    and await self.engine.catalog.exist(table)
                 ):
                     continue
 
@@ -1424,28 +1305,42 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
 
                 ### Execute.
                 await self.engine.execute(sql)
-                refresh_schema = True
 
-                ## Report.
-                text = f"Table '{table}' of database '{database}' build completed."
-                print(text)
+            ## ORM.
+            else:
+                table = params._get_table().name
+
+                ## Exist.
+                if (
+                    skip
+                    and await self.engine.catalog.exist(table)
+                ):
+                    continue
+
+                ## Confirm.
+                if ask:
+                    text = self.get_orm_table_text(params)
+                    self.input_confirm_build(text)
+
+                ## Execute.
+                await self.create_orm_table(params)
+
+            ## Report.
+            text = f"Table '{table}' of database '{self.engine.database}' build completed."
+            print(text)
+            refresh_schema = True
 
         # Refresh schema.
         if refresh_schema:
-            self.engine.schema()
+            self.engine.catalog()
 
         # View.
         for params in views:
-            path = params['path']
-            if type(path) == str:
-                database, table = self.engine.database, path
-            else:
-                database, table = path
 
             ## Exist.
             if (
                 skip
-                and await self.engine.schema.exist(database, table)
+                and await self.engine.catalog.exist(params['table'])
             ):
                 continue
 
@@ -1460,21 +1355,16 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
             await self.engine.execute(sql)
 
             ## Report.
-            text = f"View '{table}' of database '{database}' build completed."
+            text = f"View '{params['table']}' of database '{self.engine.database}' build completed."
             print(text)
 
         # View stats.
         for params in views_stats:
-            path = params['path']
-            if type(path) == str:
-                database, table = self.engine.database, path
-            else:
-                database, table = path
 
             ## Exist.
             if (
                 skip
-                and await self.engine.schema.exist(database, table)
+                and await self.engine.catalog.exist(params['table'])
             ):
                 continue
 
@@ -1489,7 +1379,7 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
             await self.engine.execute(sql)
 
             ## Report.
-            text = f"View '{table}' of database '{database}' build completed."
+            text = f"View '{params['table']}' of database '{self.engine.database}' build completed."
             print(text)
 
 

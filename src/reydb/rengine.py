@@ -33,12 +33,12 @@ DatabaseExecuteT = TypeVar('DatabaseExecuteT', 'rexec.DatabaseExecute', 'rexec.D
 DatabaseORMT = TypeVar('DatabaseORMT', 'rorm.DatabaseORM', 'rorm.DatabaseORMAsync')
 DatabaseBuildT = TypeVar('DatabaseBuildT', 'rbuild.DatabaseBuild', 'rbuild.DatabaseBuildAsync')
 DatabaseConfigT = TypeVar('DatabaseConfigT', 'rconfig.DatabaseConfig', 'rconfig.DatabaseConfigAsync')
-DatabaseInformationSchemaT = TypeVar(
-    'DatabaseInformationSchemaT',
-    'rinfo.DatabaseInformationSchema',
-    'rinfo.DatabaseInformationSchemaAsync'
+DatabaseInformationCatalogT = TypeVar(
+    'DatabaseInformationCatalogT',
+    'rinfo.DatabaseInformationCatalog',
+    'rinfo.DatabaseInformationCatalogAsync'
 )
-DatabaseInformationParameterVariablesT = TypeVar(
+DatabaseInformationParameterT = TypeVar(
     'DatabaseInformationParameterVariablesT',
     'rinfo.DatabaseInformationParameterVariables',
     'rinfo.DatabaseInformationParameterVariablesAsync'
@@ -69,15 +69,15 @@ class DatabaseEngineSuper(
         DatabaseORMT,
         DatabaseBuildT,
         DatabaseConfigT,
-        DatabaseInformationSchemaT,
-        DatabaseInformationParameterVariablesT,
+        DatabaseInformationCatalogT,
+        DatabaseInformationParameterT,
         DatabaseInformationParameterStatusT,
         DatabaseInformationParameterVariablesGlobalT,
         DatabaseInformationParameterStatusGlobalT
     ]
 ):
     """
-    Database engine super type, based `MySQL`.
+    Database engine super type, based `PostgreSQL`.
     """
 
 
@@ -138,7 +138,7 @@ class DatabaseEngineSuper(
         self.query = query
 
         ## Schema.
-        self._schema: dict[str, dict[str, list[str]]] | None = None
+        self._catalog: dict[str, dict[str, list[str]]] | None = None
 
         ## Create engine.
         self.engine = self.__create_engine()
@@ -215,9 +215,9 @@ class DatabaseEngineSuper(
         password = urllib_quote(self.password)
         match self:
             case DatabaseEngine():
-                url_ = f'mysql+pymysql://{self.username}:{password}@{self.host}:{self.port}/{self.database}'
+                url_ = f'postgresql+psycopg://{self.username}:{password}@{self.host}:{self.port}/{self.database}'
             case DatabaseEngineAsync():
-                url_ = f'mysql+aiomysql://{self.username}:{password}@{self.host}:{self.port}/{self.database}'
+                url_ = f'postgresql+asyncpg://{self.username}:{password}@{self.host}:{self.port}/{self.database}'
 
         # Add Server parameter.
         if self.query != {}:
@@ -248,8 +248,7 @@ class DatabaseEngineSuper(
             'pool_size': self.max_keep,
             'max_overflow': max_overflow,
             'pool_timeout': self.pool_timeout,
-            'pool_recycle': self.pool_recycle,
-            'connect_args': {'client_flag': MULTI_STATEMENTS}
+            'pool_recycle': self.pool_recycle
         }
 
         # Create Engine.
@@ -400,9 +399,9 @@ class DatabaseEngineSuper(
 
 
     @property
-    def schema(self) -> DatabaseInformationSchemaT:
+    def catalog(self) -> DatabaseInformationCatalogT:
         """
-        Build database schema instance.
+        Build database catalog instance.
 
         Returns
         -------
@@ -412,17 +411,17 @@ class DatabaseEngineSuper(
         # Build.
         match self:
             case DatabaseEngine():
-                schema = rinfo.DatabaseInformationSchema(self)
+                schema = rinfo.DatabaseInformationCatalog(self)
             case DatabaseEngineAsync():
-                schema = rinfo.DatabaseInformationSchemaAsync(self)
+                schema = rinfo.DatabaseInformationCatalogAsync(self)
 
         return schema
 
 
     @property
-    def var(self) -> DatabaseInformationParameterVariablesT:
+    def param(self) -> DatabaseInformationParameterT:
         """
-        Build database parameters variable instance.
+        Build database parameters instance.
 
         Returns
         -------
@@ -432,71 +431,11 @@ class DatabaseEngineSuper(
         # Build.
         match self:
             case DatabaseEngine():
-                var = rinfo.DatabaseInformationParameterVariables(self)
+                param = rinfo.DatabaseInformationParameter(self)
             case DatabaseEngineAsync():
-                var = rinfo.DatabaseInformationParameterVariablesAsync(self)
+                param = rinfo.DatabaseInformationParameterAsync(self)
 
-        return var
-
-
-    @property
-    def stat(self) -> DatabaseInformationParameterVariablesT:
-        """
-        Build database parameters status instance.
-
-        Returns
-        -------
-        Instance.
-        """
-
-        # Build.
-        match self:
-            case DatabaseEngine():
-                stat = rinfo.DatabaseInformationParameterStatus(self)
-            case DatabaseEngineAsync():
-                stat = rinfo.DatabaseInformationParameterStatusAsync(self)
-
-        return stat
-
-
-    @property
-    def glob_var(self) -> DatabaseInformationParameterVariablesGlobalT:
-        """
-        Build global database parameters variable instance.
-
-        Returns
-        -------
-        Instance.
-        """
-
-        # Build.
-        match self:
-            case DatabaseEngine():
-                var = rinfo.DatabaseInformationParameterVariablesGlobal(self)
-            case DatabaseEngineAsync():
-                var = rinfo.DatabaseInformationParameterVariablesGlobalAsync(self)
-
-        return var
-
-
-    @property
-    def glob_stat(self) -> DatabaseInformationParameterStatusGlobalT:
-        """
-        Build global database parameters status instance.
-
-        Returns
-        -------
-        Instance.
-        """
-
-        # Build.
-        match self:
-            case DatabaseEngine():
-                stat = rinfo.DatabaseInformationParameterStatusGlobal(self)
-            case DatabaseEngineAsync():
-                stat = rinfo.DatabaseInformationParameterStatusGlobalAsync(self)
-
-        return stat
+        return param
 
 
 class DatabaseEngine(
@@ -507,7 +446,7 @@ class DatabaseEngine(
         'rorm.DatabaseORM',
         'rbuild.DatabaseBuild',
         'rconfig.DatabaseConfig',
-        'rinfo.DatabaseInformationSchema',
+        'rinfo.DatabaseInformationCatalog',
         'rinfo.DatabaseInformationParameterVariables',
         'rinfo.DatabaseInformationParameterStatus',
         'rinfo.DatabaseInformationParameterVariablesGlobal',
@@ -515,7 +454,7 @@ class DatabaseEngine(
     ]
 ):
     """
-    Database engine type, based `MySQL`.
+    Database engine type, based `PostgreSQL`.
     """
 
 
@@ -582,7 +521,7 @@ class DatabaseEngineAsync(
         'rorm.DatabaseORMAsync',
         'rbuild.DatabaseBuildAsync',
         'rconfig.DatabaseConfigAsync',
-        'rinfo.DatabaseInformationSchemaAsync',
+        'rinfo.DatabaseInformationCatalogAsync',
         'rinfo.DatabaseInformationParameterVariablesAsync',
         'rinfo.DatabaseInformationParameterStatusAsync',
         'rinfo.DatabaseInformationParameterVariablesGlobalAsync',
@@ -590,7 +529,7 @@ class DatabaseEngineAsync(
     ]
 ):
     """
-    Asynchronous database engine type, based `MySQL`.
+    Asynchronous database engine type, based `PostgreSQL`.
     """
 
 

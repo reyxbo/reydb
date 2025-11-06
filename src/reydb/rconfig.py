@@ -101,13 +101,13 @@ class DatabaseConfigSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## View stats.
         views_stats = [
             {
-                'path': 'stats_config',
+                'table': 'stats_config',
                 'items': [
                     {
                         'name': 'count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM `{database}`.`config`'
+                            f'FROM `config`'
                         ),
                         'comment': 'Config count.'
                     },
@@ -115,7 +115,7 @@ class DatabaseConfigSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'last_create_time',
                         'select': (
                             'SELECT MAX(`create_time`)\n'
-                            f'FROM `{database}`.`config`'
+                            f'FROM `config`'
                         ),
                         'comment': 'Config last record create time.'
                     },
@@ -123,7 +123,7 @@ class DatabaseConfigSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'last_update_time',
                         'select': (
                             'SELECT MAX(`update_time`)\n'
-                            f'FROM `{database}`.`config`'
+                            f'FROM `config`'
                         ),
                         'comment': 'Config last record update time.'
                     }
@@ -174,7 +174,7 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
         result = self.engine.execute.select(
             'config',
             ['key', 'value', 'note'],
-            order='IFNULL(`update_time`, `create_time`) DESC'
+            order='IFNULL("update_time", "create_time") DESC'
         )
 
         # Convert.
@@ -490,7 +490,7 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
         result = await self.engine.execute.select(
             'config',
             ['key', 'value', 'note'],
-            order='IFNULL(`update_time`, `create_time`) DESC'
+            order='IFNULL("update_time", "create_time") DESC'
         )
 
         # Convert.

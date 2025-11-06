@@ -169,23 +169,6 @@ class DatabaseConnection(DatabaseConnectionSuper['rengine.DatabaseEngine', 'rexe
             self.connection = None
 
 
-    def insert_id(self) -> int:
-        """
-        Return last self increasing ID.
-
-        Returns
-        -------
-        ID.
-        """
-
-        # Get.
-        sql = 'SELECT LAST_INSERT_ID()'
-        result = self.execute(sql)
-        insert_id = result.scalar()
-
-        return insert_id
-
-
 class DatabaseConnectionAsync(DatabaseConnectionSuper['rengine.DatabaseEngineAsync', 'rexec.DatabaseExecuteAsync', AsyncConnection, AsyncTransaction]):
     """
     Asynchronous database connection type.
@@ -292,20 +275,3 @@ class DatabaseConnectionAsync(DatabaseConnectionSuper['rengine.DatabaseEngineAsy
         if self.connection is not None:
             await self.connection.close()
             self.connection = None
-
-
-    async def insert_id(self) -> int:
-        """
-        Asynchronous return last self increasing ID.
-
-        Returns
-        -------
-        ID.
-        """
-
-        # Get.
-        sql = 'SELECT LAST_INSERT_ID()'
-        result = await self.execute(sql)
-        id_ = result.scalar()
-
-        return id_

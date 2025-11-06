@@ -27,7 +27,7 @@ from sqlalchemy.sql.dml import Update, Delete
 from sqlalchemy.sql.sqltypes import TypeEngine
 from sqlalchemy.sql._typing import _ColumnExpressionArgument
 from sqlalchemy.ext.asyncio import AsyncSessionTransaction
-from sqlalchemy.dialects.mysql import Insert, types as types_mysql
+from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.exc import SAWarning
 from sqlmodel import SQLModel, Session, Table as STable
 from sqlmodel.main import SQLModelMetaclass, FieldInfo, default_registry
@@ -219,7 +219,7 @@ class DatabaseORMModelField(DatabaseORMBase, FieldInfo):
         self,
         field_type: TypeEngine | None = None,
         *,
-        field_default: str | Literal[':time'] | Literal[':create_time'] | Literal[':update_time'] = None,
+        field_default: str | Literal[':create_time'] | Literal[':update_time'] = None,
         arg_default: Any | Callable[[], Any] | Null.Type = Null,
         arg_update: Any | Callable[[], Any] = None,
         name: str | None = None,
@@ -256,9 +256,8 @@ class DatabaseORMModelField(DatabaseORMBase, FieldInfo):
         field_type : Database field type.
             - `None`: Based type annotation automatic judgment.
         field_default : Database field defualt value.
-            - `Literal[':time']`: Set SQL syntax 'DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'.
             - `Literal[':create_time']`: Set SQL syntax 'DEFAULT CURRENT_TIMESTAMP'.
-            - `Literal[':update_time']`: Set SQL syntax 'ON UPDATE CURRENT_TIMESTAMP'.
+            - `Literal[':update_time']`: Set SQL syntax 'DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'.
         arg_default : Call argument default value.
             - `Callable[[], Any]`: Call function and use return value.
         arg_update : In `Session` management, When commit update record, then default value is this value.
@@ -2027,10 +2026,7 @@ Field = DatabaseORMModelField
 ModelConfig
 
 ## Database ORM model filed types.
-types = types
-
-## Database ORM model MySQL filed types.
-types_mysql = types_mysql
+types
 
 ## Database ORM model functions.
 funcs = sqlalchemy_func

@@ -34,7 +34,7 @@ __all__ = (
 )
 
 
-# Monkey path.
+# Monkey patch.
 _Result = monkey_sqlalchemy_result_more_fetch()
 Result = _Result
 monkey_sqlalchemy_row_index_field()
@@ -106,7 +106,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
 
     def handle_select(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: str | Iterable[str] | None = None,
         where: str | None = None,
         group: str | None = None,
@@ -119,9 +119,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
@@ -142,10 +140,13 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.conn.engine.database, path
-        else:
-            database, table = path
+        if '"' not in table:
+            table = '.'.join(
+                [
+                    f'"{part}"'
+                    for part in table.split('.')
+                ]
+            )
 
         # Generate SQL.
         sql_list = []
@@ -161,7 +162,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
                         field.startswith(':')
                         and field != ':'
                     )
-                    else f'`{field}`'
+                    else f'"{field}"'
                     for field in fields
                 ]
             )
@@ -169,7 +170,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         sql_list.append(sql_select)
 
         ## Part 'FROM' syntax.
-        sql_from = f'FROM `{database}`.`{table}`'
+        sql_from = f'FROM {table}'
         sql_list.append(sql_from)
 
         ## Part 'WHERE' syntax.
@@ -211,25 +212,25 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
 
     def handle_insert(
         self,
-        path: str | tuple[str, str],
+        table: str,
         data: TableData,
         duplicate: Literal['ignore', 'update'] | Container[str] | None = None,
+        return_field: str | Iterable[str] = None,
         **kwdata: Any
-    ) -> Result:
+    ) -> tuple[str, dict]:
         """
         Handle method of execute insert SQL.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         data : Insert data.
         duplicate : Handle method when constraint error.
             - `None`: Not handled.
             - `ignore`: Use `UPDATE IGNORE INTO` clause.
             - `update`: Use `ON DUPLICATE KEY UPDATE` clause and update all fields.
             - `Container[str]`: Use `ON DUPLICATE KEY UPDATE` clause and update this fields.
+        return_field : Return the fields of the inserted record.
         kwdata : Keyword parameters for filling.
             - `str and first character is ':'`: Use this syntax.
             - `Any`: Use this value.
@@ -240,10 +241,18 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.conn.engine.database, path
-        else:
-            database, table = path
+        if '"' not in table:
+            table = '.'.join(
+                [
+                    f'"{part}"'
+                    for part in table.split('.')
+                ]
+            )
+        if return_field is not None:
+            if type(return_field) == str:
+                if return_field != '*':
+                    return_field = f'"{return_field}"'
+                return_field = [return_field]
 
         ## Data.
         data_table = Table(data)
@@ -286,7 +295,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         )
         sql_fields = ', '.join(
             [
-                f'`{field}`'
+                f'"{field}"'
                 for field in sql_fields_list
             ]
         )
@@ -310,14 +319,14 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
             ### Not handle.
             case None:
                 sql = (
-                    f'INSERT INTO `{database}`.`{table}`({sql_fields})\n'
+                    f'INSERT INTO {table}({sql_fields})\n'
                     f'VALUES({sql_values})'
                 )
 
             ### Ignore.
             case 'ignore':
                 sql = (
-                    f'INSERT IGNORE INTO `{database}`.`{table}`({sql_fields})\n'
+                    f'INSERT IGNORE INTO {table}({sql_fields})\n'
                     f'VALUES({sql_values})'
                 )
 
@@ -332,47 +341,45 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
                     ]
                 update_content = ',\n    '.join(
                     [
-                        f'`{field}` = VALUES(`{field}`)'
+                        f'"{field}" = VALUES("{field}")'
                         for field in sql_fields_list_update
                     ]
                 )
                 sql = (
-                    f'INSERT INTO `{database}`.`{table}`({sql_fields})\n'
+                    f'INSERT INTO {table}({sql_fields})\n'
                     f'VALUES({sql_values})\n'
                     'ON DUPLICATE KEY UPDATE\n'
                     f'    {update_content}'
                 )
+
+        ## Part 'returning` syntax.
+        if return_field is not None:
+            sql += '\nRETURNING ' + ', '.join(return_field)
 
         return sql, kwdata_replace
 
 
     def handle_update(
         self,
-        path: str | tuple[str, str],
+        table: str,
         data: TableData,
-        where_fields: str | Iterable[str] | None = None,
+        order: str | None = None,
+        limit: int | str | tuple[int, int] | None = None,
         **kwdata: Any
-    ) -> Result:
+    ) -> tuple[str, dict]:
         """
         Execute update SQL.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
-        data : Update data, clause `SET` and `WHERE` and `ORDER BY` and `LIMIT` content.
-            - `Key`: Table field.
-                `literal['order']`: Clause `ORDER BY` content, join as `ORDER BY str`.
-                `literal['limit']`: Clause `LIMIT` content, join as `LIMIT str`.
-                `Other`: Clause `SET` and `WHERE` content.
+        table : Table name.
+        data : Update data, join as `key = :value`.
+            - `Key`: Table field, each row of fields must be the same, the first field is `WHERE` content.
             - `Value`: Table value.
-                `list | tuple`: Join as `field IN :str`.
-                `Any`: Join as `field = :str`.
-        where_fields : Clause `WHERE` content fields.
-            - `None`: The first key value pair of each item is judged.
-            - `str`: This key value pair of each item is judged.
-            - `Iterable[str]`: Multiple judged, `and`: relationship.
+        order : Clause `ORDER BY` content, join as `ORDER BY str`.
+        limit : Clause `LIMIT` content.
+            - `int | str`: Join as `LIMIT int/str`.
+            - `tuple[int, int]`: Join as `LIMIT int, int`.
         kwdata : Keyword parameters for filling.
             - `str and first character is ':'`: Use this syntax.
             - `Any`: Use this value.
@@ -383,130 +390,101 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.conn.engine.database, path
-        else:
-            database, table = path
+        if '"' not in table:
+            table = '.'.join(
+                [
+                    f'"{part}"'
+                    for part in table.split('.')
+                ]
+            )
 
         ## Data.
         data_table = Table(data)
         data = data_table.to_table()
 
-        ## Check.
+        ### Check.
         if data in ([], [{}]):
             throw(ValueError, data)
 
-        ## Keyword data.
-        kwdata_method = {}
-        kwdata_replace = {}
+        ### Keyword data.
+        kwdata_syntax = {}
+        kwdata_value = {}
         for key, value in kwdata.items():
             if (
                 type(value) == str
                 and value.startswith(':')
                 and value != ':'
             ):
-                kwdata_method[key] = value[1:]
+                kwdata_syntax[key] = value[1:]
             else:
-                kwdata_replace[key] = value
-        sql_set_list_kwdata = [
-            f'`{key}` = {value}'
-            for key, value in kwdata_method.items()
-        ]
-        sql_set_list_kwdata.extend(
-            [
-                f'`{key}` = :{key}'
-                for key in kwdata_replace
-            ]
-        )
+                kwdata_value[key] = value
+        for row in data:
+            row.update(kwdata_value)
+
+        ### Where field.
+        fields = list(data[0])
+        where_filed, *set_fields = fields
 
         # Generate SQL.
-        data_flatten = kwdata_replace
-        if where_fields is None:
-            no_where = True
-        else:
-            no_where = False
-            if type(where_fields) == str:
-                where_fields = [where_fields]
-        sqls_list = []
-        sql_update = f'UPDATE `{database}`.`{table}`'
-        for index, row in enumerate(data):
-            sql_parts = [sql_update]
-            for key, value in row.items():
-                if key in ('order', 'limit'):
-                    continue
-                index_key = f'{index}_{key}'
-                data_flatten[index_key] = value
-            if no_where:
-                for key in row:
-                    where_fields = [key]
-                    break
+        sql_list = []
 
-            ## Part 'SET' syntax.
-            sql_set_list = sql_set_list_kwdata.copy()
-            sql_set_list.extend(
-                [
-                    f'`{key}` = :{index}_{key}'
-                    for key in row
-                    if (
-                        key not in where_fields
-                        and key not in kwdata
-                        and key not in ('order', 'limit')
-                    )
-                ]
-            )
-            sql_set = 'SET ' + ',\n    '.join(sql_set_list)
-            sql_parts.append(sql_set)
+        ## Part 'UPDATE' syntax.
+        sql_update = f'UPDATE {table}'
+        sql_list.append(sql_update)
 
-            ## Part 'WHERE' syntax.
-            sql_where_list = []
-            for field in where_fields:
-                index_field = f'{index}_{field}'
-                index_value = data_flatten[index_field]
-                if type(index_value) in (list, tuple):
-                    sql_where_part = f'`{field}` IN :{index_field}'
-                else:
-                    sql_where_part = f'`{field}` = :{index_field}'
-                sql_where_list.append(sql_where_part)
-            sql_where = 'WHERE ' + '\n    AND '.join(sql_where_list)
-            sql_parts.append(sql_where)
+        ## Part 'SET' syntax.
+        sql_set_list = [
+            f'"{field}" = :{field}'
+            for field in set_fields
+        ]
+        sql_set_list.extend(
+            [
+                f'"{key}" = {syntax}'
+                for field, syntax in kwdata_syntax.items()
+            ]
+        )
+        sql_set = 'SET ' + ',\n    '.join(sql_set_list)
+        sql_list.append(sql_set)
 
-            ## Part 'ORDER BY' syntax.
-            order = row.get('order')
-            if order is not None:
-                sql_order = f'ORDER BY {order}'
-                sql_parts.append(sql_order)
+        ## Part 'WHERE' syntax.
+        sql_where = f'WHERE "{where_filed}" = :{where_filed}'
+        sql_list.append(sql_where)
 
-            ## Part 'LIMIT' syntax.
-            limit = row.get('limit')
-            if limit is not None:
+        ## Part 'ORDER BY' syntax.
+        if order is not None:
+            sql_order = f'ORDER BY {order}'
+            sql_list.append(sql_order)
+
+        ## Part 'LIMIT' syntax.
+        if limit is not None:
+            if type(limit) in (str, int):
                 sql_limit = f'LIMIT {limit}'
-                sql_parts.append(sql_limit)
+            else:
+                if len(limit) == 2:
+                    sql_limit = f'LIMIT {limit[0]}, {limit[1]}'
+                else:
+                    throw(ValueError, limit)
+            sql_list.append(sql_limit)
 
-            ## Join sql part.
-            sql = '\n'.join(sql_parts)
-            sqls_list.append(sql)
+        ## Join sql part.
+        sql = '\n'.join(sql_list)
 
-        ## Join sqls.
-        sqls = ';\n'.join(sqls_list)
-
-        return sqls, data_flatten
+        return sql, data
 
 
     def handle_delete(
         self,
-        path: str | tuple[str, str],
+        table: str,
         where: str | None = None,
         order: str | None = None,
         limit: int | str | None = None
-    ) -> Result:
+    ) -> str:
         """
         Execute delete SQL.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         where : Clause `WHERE` content, join as `WHERE str`.
         order : Clause `ORDER BY` content, join as `ORDER BY str`.
         limit : Clause `LIMIT` content, join as `LIMIT int/str`.
@@ -517,16 +495,19 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.conn.engine.database, path
-        else:
-            database, table = path
+        if '"' not in table:
+            table = '.'.join(
+                [
+                    f'"{part}"'
+                    for part in table.split('.')
+                ]
+            )
 
         # Generate SQL.
         sqls = []
 
         ## Part 'DELETE' syntax.
-        sql_delete = f'DELETE FROM `{database}`.`{table}`'
+        sql_delete = f'DELETE FROM {table}'
         sqls.append(sql_delete)
 
         ## Part 'WHERE' syntax.
@@ -552,19 +533,17 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
 
     def handle_copy(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: str | Iterable[str] | None = None,
         where: str | None = None,
         limit: int | str | tuple[int, int] | None = None
-    ) -> Result:
+    ) -> str:
         """
         Execute inesrt SQL of copy records.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
@@ -580,10 +559,13 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         """
 
         # Parameter.
-        if type(path) == str:
-            database, table = self.conn.engine.database, path
-        else:
-            database, table = path
+        if '"' not in table:
+            table = '.'.join(
+                [
+                    f'"{part}"'
+                    for part in table.split('.')
+                ]
+            )
         if fields is None:
             fields = '*'
         elif type(fields) != str:
@@ -593,7 +575,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         sqls = []
 
         ## Part 'INSERT' syntax.
-        sql_insert = f'INSERT INTO `{database}`.`{table}`'
+        sql_insert = f'INSERT INTO {table}'
         if fields != '*':
             sql_insert += f'({fields})'
         sqls.append(sql_insert)
@@ -601,7 +583,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         ## Part 'SELECT' syntax.
         sql_select = (
             f'SELECT {fields}\n'
-            f'FROM `{database}`.`{table}`'
+            f'FROM {table}'
         )
         sqls.append(sql_select)
 
@@ -696,7 +678,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
     def select(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: str | Iterable[str] | None = None,
         where: str | None = None,
         group: str | None = None,
@@ -711,9 +693,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
@@ -738,20 +718,20 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         Examples
         --------
         Parameter `fields`.
-        >>> fields = ['id', ':`id` + 1 AS `id_`']
+        >>> fields = ['id', ':"id" + 1 AS "id_"']
         >>> result = Database.execute.select('table', fields)
         >>> print(result.to_table())
         [{'id': 1, 'id_': 2}, ...]
 
         Parameter `kwdata`.
-        >>> fields = '`id`, `id` + :value AS `id_`'
+        >>> fields = ['id', ':"id" + :value AS "id_"]
         >>> result = Database.execute.select('table', fields, value=1)
         >>> print(result.to_table())
         [{'id': 1, 'id_': 2}, ...]
         """
 
         # Parameter.
-        sql = self.handle_select(path, fields, where, group, having, order, limit)
+        sql = self.handle_select(table, fields, where, group, having, order, limit)
 
         # Execute SQL.
         result = self.execute(sql, echo=echo, **kwdata)
@@ -761,26 +741,26 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
     def insert(
         self,
-        path: str | tuple[str, str],
+        table: str,
         data: TableData,
         duplicate: Literal['ignore', 'update'] | Container[str] | None = None,
+        return_field: str | Iterable[str] = None,
         echo: bool | None = None,
         **kwdata: Any
-    ) -> Result:
+    ) -> Result | int:
         """
         Execute insert SQL.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         data : Insert data.
         duplicate : Handle method when constraint error.
             - `None`: Not handled.
             - `ignore`: Use `UPDATE IGNORE INTO` clause.
             - `update`: Use `ON DUPLICATE KEY UPDATE` clause and update all fields.
             - `Container[str]`: Use `ON DUPLICATE KEY UPDATE` clause and update this fields.
+        return_field : Return the fields of the inserted record.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -804,7 +784,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         """
 
         # Parameter.
-        sql, kwdata = self.handle_insert(path, data, duplicate, **kwdata)
+        sql, kwdata = self.handle_insert(table, data, duplicate, return_field, **kwdata)
 
         # Execute SQL.
         result = self.execute(sql, data, echo, **kwdata)
@@ -814,9 +794,10 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
     def update(
         self,
-        path: str | tuple[str, str],
+        table: str,
         data: TableData,
-        where_fields: str | Iterable[str] | None = None,
+        order: str | None = None,
+        limit: int | str | tuple[int, int] | None = None,
         echo: bool | None = None,
         **kwdata: Any
     ) -> Result:
@@ -825,21 +806,14 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
-        data : Update data, clause `SET` and `WHERE` and `ORDER BY` and `LIMIT` content.
-            - `Key`: Table field.
-                `literal['order']`: Clause `ORDER BY` content, join as `ORDER BY str`.
-                `literal['limit']`: Clause `LIMIT` content, join as `LIMIT str`.
-                `Other`: Clause `SET` and `WHERE` content.
+        table : Table name.
+        data : Update data, join as `key = :value`.
+            - `Key`: Table field, each row of fields must be the same, the first field is `WHERE` content.
             - `Value`: Table value.
-                `list | tuple`: Join as `field IN :str`.
-                `Any`: Join as `field = :str`.
-        where_fields : Clause `WHERE` content fields.
-            - `None`: The first key value pair of each item is judged.
-            - `str`: This key value pair of each item is judged.
-            - `Iterable[str]`: Multiple judged, `and`: relationship.
+        order : Clause `ORDER BY` content, join as `ORDER BY str`.
+        limit : Clause `LIMIT` content.
+            - `int | str`: Join as `LIMIT int/str`.
+            - `tuple[int, int]`: Join as `LIMIT int, int`.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -852,18 +826,13 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Examples
         --------
-        >>> data = [{'key': 'a'}, {'key': 'b'}]
-        >>> kwdata = {'value': 1, 'name': ':`key`'}
+        >>> data = [{'id': 1, 'name': 'a'}, {'id': 2, 'name': 'b'}]
+        >>> kwdata = {'valid': True, 'time': ':now()'}
         >>> result = Database.execute.update('table', data, **kwdata)
-        >>> print(result.rowcount)
-        2
-        >>> result = Database.execute.select('table')
-        >>> print(result.to_table())
-        [{'key': 'a', 'value': 1, 'name': 'a'}, {'key': 'b', 'value': 1, 'name': 'b'}]
         """
 
         # Parameter.
-        sql, data = self.handle_update(path, data, where_fields, **kwdata)
+        sql, data = self.handle_update(table, data, order, limit, **kwdata)
 
         # Execute SQL.
         result = self.execute(sql, data, echo)
@@ -873,7 +842,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
     def delete(
         self,
-        path: str | tuple[str, str],
+        table: str,
         where: str | None = None,
         order: str | None = None,
         limit: int | str | None = None,
@@ -885,9 +854,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         where : Clause `WHERE` content, join as `WHERE str`.
         order : Clause `ORDER BY` content, join as `ORDER BY str`.
         limit : Clause `LIMIT` content, join as `LIMIT int/str`.
@@ -909,7 +876,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         """
 
         # Parameter.
-        sql = self.handle_delete(path, where, order, limit)
+        sql = self.handle_delete(table, where, order, limit)
 
         # Execute SQL.
         result = self.execute(sql, echo=echo, **kwdata)
@@ -919,7 +886,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
     def copy(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: str | Iterable[str] | None = None,
         where: str | None = None,
         limit: int | str | tuple[int, int] | None = None,
@@ -931,9 +898,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
@@ -960,7 +925,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         """
 
         # Parameter.
-        sql = self.handle_copy(path, fields, where, limit)
+        sql = self.handle_copy(table, fields, where, limit)
 
         # Execute SQL.
         result = self.execute(sql, echo=echo, **kwdata)
@@ -970,7 +935,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
     def count(
         self,
-        path: str | tuple[str, str],
+        table: str,
         where: str | None = None,
         echo: bool | None = None,
         **kwdata: Any
@@ -980,9 +945,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         where : Match condition, `WHERE` clause content, join as `WHERE str`.
             - `None`: Match all.
             - `str`: Match condition.
@@ -1004,7 +967,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         """
 
         # Execute.
-        result = self.select(path, '1', where=where, echo=echo, **kwdata)
+        result = self.select(table, '1', where=where, echo=echo, **kwdata)
         count = len(tuple(result))
 
         return count
@@ -1012,7 +975,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
     def exist(
         self,
-        path: str | tuple[str, str],
+        table: str,
         where: str | None = None,
         echo: bool | None = None,
         **kwdata: Any
@@ -1022,9 +985,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         where : Match condition, `WHERE` clause content, join as `WHERE str`.
             - `None`: Match all.
             - `str`: Match condition.
@@ -1048,7 +1009,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         """
 
         # Execute.
-        result = self.count(path, where, echo, **kwdata)
+        result = self.count(table, where, echo, **kwdata)
 
         # Judge.
         judge = result != 0
@@ -1236,7 +1197,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
     async def select(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: str | Iterable[str] | None = None,
         where: str | None = None,
         group: str | None = None,
@@ -1251,9 +1212,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
@@ -1278,20 +1237,20 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         Examples
         --------
         Parameter `fields`.
-        >>> fields = ['id', ':`id` + 1 AS `id_`']
+        >>> fields = ['id', ':"id" + 1 AS "id_"']
         >>> result = await Database.execute.select('table', fields)
         >>> print(result.to_table())
         [{'id': 1, 'id_': 2}, ...]
 
         Parameter `kwdata`.
-        >>> fields = '`id`, `id` + :value AS `id_`'
+        >>> fields = ['id', ':"id" + :value AS "id_"]
         >>> result = await Database.execute.select('table', fields, value=1)
         >>> print(result.to_table())
         [{'id': 1, 'id_': 2}, ...]
         """
 
         # Parameter.
-        sql = self.handle_select(path, fields, where, group, having, order, limit)
+        sql = self.handle_select(table, fields, where, group, having, order, limit)
 
         # Execute SQL.
         result = await self.execute(sql, echo=echo, **kwdata)
@@ -1301,26 +1260,26 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
     async def insert(
         self,
-        path: str | tuple[str, str],
+        table: str,
         data: TableData,
         duplicate: Literal['ignore', 'update'] | Container[str] | None = None,
+        return_field: str | Iterable[str] = None,
         echo: bool | None = None,
         **kwdata: Any
-    ) -> Result:
+    ) -> Result | int:
         """
         Asynchronous execute insert SQL.
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         data : Insert data.
         duplicate : Handle method when constraint error.
             - `None`: Not handled.
             - `ignore`: Use `UPDATE IGNORE INTO` clause.
             - `update`: Use `ON DUPLICATE KEY UPDATE` clause and update all fields.
             - `Container[str]`: Use `ON DUPLICATE KEY UPDATE` clause and update this fields.
+        return_field : Return the fields of the inserted record.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -1335,16 +1294,16 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         --------
         >>> data = [{'key': 'a'}, {'key': 'b'}]
         >>> kwdata = {'value1': 1, 'value2': ':(SELECT 2)'}
-        >>> result = await Database.execute.insert('table', data, **kwdata)
+        >>> result = Database.execute.insert('table', data, **kwdata)
         >>> print(result.rowcount)
         2
-        >>> result = await Database.execute.select('table')
+        >>> result = Database.execute.select('table')
         >>> print(result.to_table())
         [{'key': 'a', 'value1': 1, 'value2': 2}, {'key': 'b', 'value1': 1, 'value2': 2}]
         """
 
         # Parameter.
-        sql, kwdata = self.handle_insert(path, data, duplicate, **kwdata)
+        sql, kwdata = self.handle_insert(table, data, duplicate, return_field, **kwdata)
 
         # Execute SQL.
         result = await self.execute(sql, data, echo, **kwdata)
@@ -1354,9 +1313,10 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
     async def update(
         self,
-        path: str | tuple[str, str],
+        table: str,
         data: TableData,
-        where_fields: str | Iterable[str] | None = None,
+        order: str | None = None,
+        limit: int | str | tuple[int, int] | None = None,
         echo: bool | None = None,
         **kwdata: Any
     ) -> Result:
@@ -1365,21 +1325,14 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
-        data : Update data, clause `SET` and `WHERE` and `ORDER BY` and `LIMIT` content.
-            - `Key`: Table field.
-                `literal['order']`: Clause `ORDER BY` content, join as `ORDER BY str`.
-                `literal['limit']`: Clause `LIMIT` content, join as `LIMIT str`.
-                `Other`: Clause `SET` and `WHERE` content.
+        table : Table name.
+        data : Update data, join as `key = :value`.
+            - `Key`: Table field, each row of fields must be the same, the first field is `WHERE` content.
             - `Value`: Table value.
-                `list | tuple`: Join as `field IN :str`.
-                `Any`: Join as `field = :str`.
-        where_fields : Clause `WHERE` content fields.
-            - `None`: The first key value pair of each item is judged.
-            - `str`: This key value pair of each item is judged.
-            - `Iterable[str]`: Multiple judged, `and`: relationship.
+        order : Clause `ORDER BY` content, join as `ORDER BY str`.
+        limit : Clause `LIMIT` content.
+            - `int | str`: Join as `LIMIT int/str`.
+            - `tuple[int, int]`: Join as `LIMIT int, int`.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -1392,18 +1345,13 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Examples
         --------
-        >>> data = [{'key': 'a'}, {'key': 'b'}]
-        >>> kwdata = {'value': 1, 'name': ':`key`'}
-        >>> result = await Database.execute.update('table', data, **kwdata)
-        >>> print(result.rowcount)
-        2
-        >>> result = await Database.execute.select('table')
-        >>> print(result.to_table())
-        [{'key': 'a', 'value': 1, 'name': 'a'}, {'key': 'b', 'value': 1, 'name': 'b'}]
+        >>> data = [{'id': 1, 'name': 'a'}, {'id': 2, 'name': 'b'}]
+        >>> kwdata = {'valid': True, 'time': ':now()'}
+        >>> result = Database.execute.update('table', data, **kwdata)
         """
 
         # Parameter.
-        sql, data = self.handle_update(path, data, where_fields, **kwdata)
+        sql, data = self.handle_update(table, data, order, limit, **kwdata)
 
         # Execute SQL.
         result = await self.execute(sql, data, echo)
@@ -1413,7 +1361,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
     async def delete(
         self,
-        path: str | tuple[str, str],
+        table: str,
         where: str | None = None,
         order: str | None = None,
         limit: int | str | None = None,
@@ -1425,9 +1373,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         where : Clause `WHERE` content, join as `WHERE str`.
         order : Clause `ORDER BY` content, join as `ORDER BY str`.
         limit : Clause `LIMIT` content, join as `LIMIT int/str`.
@@ -1449,7 +1395,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         """
 
         # Parameter.
-        sql = self.handle_delete(path, where, order, limit)
+        sql = self.handle_delete(table, where, order, limit)
 
         # Execute SQL.
         result = await self.execute(sql, echo=echo, **kwdata)
@@ -1459,7 +1405,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
     async def copy(
         self,
-        path: str | tuple[str, str],
+        table: str,
         fields: str | Iterable[str] | None = None,
         where: str | None = None,
         limit: int | str | tuple[int, int] | None = None,
@@ -1471,9 +1417,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
@@ -1500,7 +1444,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         """
 
         # Parameter.
-        sql = self.handle_copy(path, fields, where, limit)
+        sql = self.handle_copy(table, fields, where, limit)
 
         # Execute SQL.
         result = await self.execute(sql, echo=echo, **kwdata)
@@ -1510,7 +1454,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
     async def count(
         self,
-        path: str | tuple[str, str],
+        table: str,
         where: str | None = None,
         echo: bool | None = None,
         **kwdata: Any
@@ -1520,9 +1464,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         where : Match condition, `WHERE` clause content, join as `WHERE str`.
             - `None`: Match all.
             - `str`: Match condition.
@@ -1544,7 +1486,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         """
 
         # Execute.
-        result = await self.select(path, '1', where=where, echo=echo, **kwdata)
+        result = await self.select(table, '1', where=where, echo=echo, **kwdata)
         count = len(tuple(result))
 
         return count
@@ -1552,7 +1494,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
     async def exist(
         self,
-        path: str | tuple[str, str],
+        table: str,
         where: str | None = None,
         echo: bool | None = None,
         **kwdata: Any
@@ -1562,9 +1504,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Parameters
         ----------
-        path : Path.
-            - `str`: Table name.
-            - `tuple[str, str]`: Database name and table name.
+        table : Table name.
         where : Match condition, `WHERE` clause content, join as `WHERE str`.
             - `None`: Match all.
             - `str`: Match condition.
@@ -1588,7 +1528,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         """
 
         # Execute.
-        result = await self.count(path, where, echo, **kwdata)
+        result = await self.count(table, where, echo, **kwdata)
 
         # Judge.
         judge = result != 0

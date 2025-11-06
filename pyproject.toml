@@ -1,18 +1,18 @@
 [project]
 name = "reydb"
-version = "1.3.12"
+version = "1.3.13"
 description = "Database method set."
 readme = "README.md"
 requires-python = ">=3.12"
 license = {file = "LICENSE"}
-keywords = ["rey", "reyxbo", "db", "database", "orm", "async", "asynchronous"]
+keywords = ["rey", "reyxbo", "PostgreSQL", "postgres", "db", "database", "orm", "async", "asynchronous"]
 authors = [
     {name = "Rey", email = "reyxbo@163.com"}
 ]
 dependencies = [
-    "aiomysql",
+    "asyncpg",
+    "psycopg[binary]",
     "pydantic[email]",
-    "pymysql",
     "reykit",
     "sqlalchemy",
     "sqlmodel"

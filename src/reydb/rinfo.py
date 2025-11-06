@@ -18,20 +18,12 @@ from .rexec import Result
 
 __all__ = (
     'DatabaseInformationBase',
-    'DatabaseInformationSchemaSuper',
-    'DatabaseInformationSchema',
-    'DatabaseInformationSchemaAsync',
+    'DatabaseInformationCatalogSuper',
+    'DatabaseInformationCatalog',
+    'DatabaseInformationCatalogAsync',
     'DatabaseInformationParameterSuper',
     'DatabaseInformationParameter',
-    'DatabaseInformationParameterAsync',
-    'DatabaseInformationParameterVariables',
-    'DatabaseInformationParameterStatus',
-    'DatabaseInformationParameterVariablesGlobal',
-    'DatabaseInformationParameterStatusGlobal',
-    'DatabaseInformationParameterVariablesAsync',
-    'DatabaseInformationParameterStatusAsync',
-    'DatabaseInformationParameterVariablesGlobalAsync',
-    'DatabaseInformationParameterStatusGlobalAsync'
+    'DatabaseInformationParameterAsync'
 )
 
 
@@ -44,9 +36,9 @@ class DatabaseInformationBase(DatabaseBase):
     """
 
 
-class DatabaseInformationSchemaSuper(DatabaseInformationBase, Generic[DatabaseEngineT]):
+class DatabaseInformationCatalogSuper(DatabaseInformationBase, Generic[DatabaseEngineT]):
     """
-    Database information schema super type.
+    Database information catalog super type.
     """
 
 
@@ -62,51 +54,10 @@ class DatabaseInformationSchemaSuper(DatabaseInformationBase, Generic[DatabaseEn
         # Parameter.
         self.engine = engine
 
-    def handle_before__call__(self, filter_default: bool = True) -> tuple[str, tuple[str, ...]]:
+
+    def handle_after_catalog(self, result: Result) -> dict[str, list[str]]:
         """
-        Before handle method of call method.
-
-        Parameters
-        ----------
-        filter_default : Whether filter default database.
-
-        Returns
-        -------
-        Parameter `sql` and `filter_db`.
-        """
-
-        # Parameter.
-        filter_db = (
-            'information_schema',
-            'performance_schema',
-            'mysql',
-            'sys'
-        )
-        if filter_default:
-            where_database = 'WHERE `SCHEMA_NAME` NOT IN :filter_db\n'
-            where_column = '    WHERE `TABLE_SCHEMA` NOT IN :filter_db\n'
-        else:
-            where_database = where_column = ''
-
-        # Select.
-        sql = (
-            'SELECT GROUP_CONCAT(`SCHEMA_NAME`) AS `TABLE_SCHEMA`, NULL AS `TABLE_NAME`, NULL AS `COLUMN_NAME`\n'
-            'FROM `information_schema`.`SCHEMATA`\n'
-            f'{where_database}'
-            'UNION ALL (\n'
-            '    SELECT `TABLE_SCHEMA`, `TABLE_NAME`, `COLUMN_NAME`\n'
-            '    FROM `information_schema`.`COLUMNS`\n'
-            f'{where_column}'
-            '    ORDER BY `TABLE_SCHEMA`, `TABLE_NAME`, `ORDINAL_POSITION`\n'
-            ')'
-        )
-
-        return sql, filter_db
-
-
-    def handle_after__call__(self, result: Result) -> dict[str, dict[str, list[str]]]:
-        """
-        After handle method of call method.
+        After handle method of get database catalog.
 
         Parameters
         ----------
@@ -114,68 +65,29 @@ class DatabaseInformationSchemaSuper(DatabaseInformationBase, Generic[DatabaseEn
 
         Returns
         -------
-        Parameter `schema_dict`.
+        Parameter `catalog`.
         """
 
         # Convert.
-        database_names, *_ = result.fetchone()
-        database_names: list[str] = database_names.split(',')
-        schema_dict = {}
-        for database, table, column in result:
-            if database in database_names:
-                database_names.remove(database)
+        catalog = {}
+        for table, column in result:
 
-            ## Index database.
-            if database not in schema_dict:
-                schema_dict[database] = {table: [column]}
+            ## Add table. 
+            if table not in catalog:
+                catalog[table] = [column]
                 continue
-            table_dict: dict = schema_dict[database]
-
-            ## Index table. 
-            if table not in table_dict:
-                table_dict[table] = [column]
-                continue
-            column_list: list = table_dict[table]
 
             ## Add column.
-            column_list.append(column)
+            columns: list = catalog[table]
+            columns.append(column)
 
-        ## Add empty database.
-        for name in database_names:
-            schema_dict[name] = None
-
-        return schema_dict
+        return catalog
 
 
-    @overload
     def handle_exist(
         self,
-        schema: dict[str, dict[str, list[str]]],
-        database: str
-    ) -> bool: ...
-
-    @overload
-    def handle_exist(
-        self,
-        schema: dict[str, dict[str, list[str]]],
-        database: str,
-        table: str
-    ) -> bool: ...
-
-    @overload
-    def handle_exist(
-        self,
-        schema: dict[str, dict[str, list[str]]],
-        database: str,
+        catalog: dict[str, dict[str, list[str]]],
         table: str,
-        column: str
-    ) -> bool: ...
-
-    def handle_exist(
-        self,
-        schema: dict[str, dict[str, list[str]]],
-        database: str,
-        table: str | None = None,
         column: str | None = None
     ) -> bool:
         """
@@ -183,8 +95,7 @@ class DatabaseInformationSchemaSuper(DatabaseInformationBase, Generic[DatabaseEn
 
         Parameters
         ----------
-        schema : Schemata of databases and tables and columns.
-        database : Database name.
+        catalog : Database catalog.
         table : Table name.
         column : Column name.
 
@@ -197,89 +108,65 @@ class DatabaseInformationSchemaSuper(DatabaseInformationBase, Generic[DatabaseEn
 
         # Judge.
         judge = (
-            database in schema
-            and (
-                table is None
-                or (
-                    (database_info := schema.get(database)) is not None
-                    and (table_info := database_info.get(table)) is not None
-                )
-            )
+            (columns := catalog.get(table)) is not None
             and (
                 column is None
-                or column in table_info
+                or column in columns
             )
         )
 
         return judge
 
 
-class DatabaseInformationSchema(DatabaseInformationSchemaSuper['rengine.DatabaseEngine']):
+class DatabaseInformationCatalog(DatabaseInformationCatalogSuper['rengine.DatabaseEngine']):
     """
-    Database information schema type.
+    Database information catalog type.
     """
 
 
-    def schema(self, filter_default: bool = True) -> dict[str, dict[str, list[str]]]:
+    def catalog(self, filter_system: bool = True) -> dict[str, list[str]]:
         """
-        Get schemata of databases and tables and columns.
+        Get database catalog.
 
         Parameters
         ----------
-        filter_default : Whether filter default database.
+        filter_system : Whether filter default database.
 
         Returns
         -------
-        Schemata of databases and tables and columns.
+        Catalog.
         """
 
+        # Parameter.
+        if filter_system:
+            where = "table_schema = 'public'"
+        else:
+            where = None
+
         # Get.
-        sql, filter_db = self.handle_before__call__(filter_default)
-        result = self.engine.execute(sql, filter_db=filter_db)
-        schema = self.handle_after__call__(result)
+        result = self.engine.execute.select(
+            'information_schema.columns',
+            ['table_name', 'column_name'],
+            where,
+            order='ordinal_position'
+        )
+        catalog = self.handle_after_catalog(result)
 
         # Cache.
-        if self.engine._schema is None:
-            self.engine._schema = schema
+        if self.engine._catalog is None:
+            self.engine._catalog = catalog
         else:
-            self.engine._schema.update(schema)
+            self.engine._catalog.update(catalog)
 
-        return schema
-
-
-    __call__ = schema
+        return catalog
 
 
-    @overload
+    __call__ = catalog
+
+
     def exist(
         self,
-        database: str,
-        *,
-        cache: bool = True
-    ) -> bool: ...
-
-    @overload
-    def exist(
-        self,
-        database: str,
-        *,
         table: str,
-        cache: bool = True
-    ) -> bool: ...
-
-    @overload
-    def exist(
-        self,
-        database: str,
-        table: str,
-        column: str,
-        cache: bool = True
-    ) -> bool: ...
-
-    def exist(
-        self,
-        database: str,
-        table: str | None = None,
         column: str | None = None,
         cache: bool = True
     ) -> bool:
@@ -288,7 +175,6 @@ class DatabaseInformationSchema(DatabaseInformationSchemaSuper['rengine.Database
 
         Parameters
         ----------
-        database : Database name.
         table : Table name.
         column : Column name.
         cache : Whether use cache data, can improve efficiency.
@@ -301,94 +187,78 @@ class DatabaseInformationSchema(DatabaseInformationSchemaSuper['rengine.Database
         # Parameter.
         if (
             cache
-            and self.engine._schema is not None
+            and self.engine._catalog is not None
         ):
-            schema = self.engine._schema
+            catalog = self.engine._catalog
         else:
-            schema = self.schema()
+            catalog = self.catalog()
 
         # Judge.
-        result = self.handle_exist(schema, database, table, column)
+        result = self.handle_exist(catalog, table, column)
 
         return result
 
 
-class DatabaseInformationSchemaAsync(DatabaseInformationSchemaSuper['rengine.DatabaseEngineAsync']):
+class DatabaseInformationCatalogAsync(DatabaseInformationCatalogSuper['rengine.DatabaseEngineAsync']):
     """
     Asynchronous database information schema type.
     """
 
 
-    async def schema(self, filter_default: bool = True) -> dict[str, dict[str, list[str]]]:
+    async def catalog(self, filter_system: bool = True) -> dict[str, list[str]]:
         """
-        Asynchronous get schemata of databases and tables and columns.
+        Asynchronous get database catalog.
 
         Parameters
         ----------
-        filter_default : Whether filter default database.
+        filter_system : Whether filter default database.
 
         Returns
         -------
-        Schemata of databases and tables and columns.
+        Catalog.
         """
 
+        # Parameter.
+        if filter_system:
+            where = "table_schema = 'public'"
+        else:
+            where = None
+
         # Get.
-        sql, filter_db = self.handle_before__call__(filter_default)
-        result = await self.engine.execute(sql, filter_db=filter_db)
-        schema = self.handle_after__call__(result)
+        result = await self.engine.execute.select(
+            'information_schema.columns',
+            ['table_name', 'column_name'],
+            where,
+            order='ordinal_position'
+        )
+        catalog = self.handle_after_catalog(result)
 
         # Cache.
-        if self.engine._schema is not None:
-            self.engine._schema.update(schema)
+        if self.engine._catalog is None:
+            self.engine._catalog = catalog
+        else:
+            self.engine._catalog.update(catalog)
 
-        return schema
+        return catalog
 
 
-    __call__ = schema
+    __call__ = catalog
 
 
-    @overload
     async def exist(
         self,
-        database: str,
-        *,
-        refresh: bool = True
-    ) -> bool: ...
-
-    @overload
-    async def exist(
-        self,
-        database: str,
-        *,
         table: str,
-        refresh: bool = True
-    ) -> bool: ...
-
-    @overload
-    async def exist(
-        self,
-        database: str,
-        table: str,
-        column: str,
-        refresh: bool = True
-    ) -> bool: ...
-
-    async def exist(
-        self,
-        database: str,
-        table: str | None = None,
         column: str | None = None,
-        refresh: bool = True
+        cache: bool = True
     ) -> bool:
         """
         Asynchronous judge database or table or column whether it exists.
 
         Parameters
         ----------
-        database : Database name.
         table : Table name.
         column : Column name.
-        refresh : Whether refresh cache data. Cache can improve efficiency.
+        cache : Whether use cache data, can improve efficiency.
 
         Returns
         -------
@@ -397,15 +267,15 @@ class DatabaseInformationSchemaAsync(DatabaseInformationSchemaSuper['rengine.Dat
 
         # Parameter.
         if (
-            refresh
-            or self.engine._schema is None
+            cache
+            and self.engine._catalog is not None
         ):
-            schema = await self.schema()
+            catalog = self.engine._catalog
         else:
-            schema = self.engine._schema
+            catalog = await self.catalog()
 
         # Judge.
-        result = self.handle_exist(schema, database, table, column)
+        result = self.handle_exist(catalog, table, column)
 
         return result
 
@@ -414,9 +284,6 @@ class DatabaseInformationParameterSuper(DatabaseInformationBase, Generic[Databas
     """
     Database information parameters super type.
     """
-
-    mode: Literal['VARIABLES', 'STATUS']
-    glob: bool
 
 
     def __init__(
@@ -495,34 +362,24 @@ class DatabaseInformationParameter(DatabaseInformationParameterSuper['rengine.Da
 
         Returns
         -------
-        Status of database.
+        Parameter value or directory.
         """
 
-        # Generate SQL.
-        sql = 'SHOW ' + (
-            'GLOBAL '
-            if self.glob
-            else ''
-        ) + self.mode
+        # Get.
 
-        # Execute SQL.
-
-        ## Dictionary.
+        ## All.
         if key is None:
-            result = self.engine.execute(sql, key=key)
-            status = result.to_dict(val_field=1)
+            sql = 'SHOW ALL'
+            result = self.engine.execute(sql)
+            param = result.to_dict(val_field=1)
 
-        ## Value.
+        ## One.
         else:
-            sql += ' LIKE :key'
-            result = self.engine.execute(sql, key=key)
-            row = result.first()
-            if row is None:
-                status = None
-            else:
-                status = row['Value']
+            sql = 'SHOW ' + key
+            result = self.engine.execute(sql)
+            param = result.scalar()
 
-        return status
+        return param
 
 
     def update(self, params: dict[str, str | float]) -> None:
@@ -534,27 +391,14 @@ class DatabaseInformationParameter(DatabaseInformationParameterSuper['rengine.Da
         params : Update parameter key value pairs.
         """
 
-        # Generate SQL.
-        sql_set_list = [
-            '%s = %s' % (
-                key,
-                (
-                    value
-                    if type(value) in (int, float)
-                    else "'%s'" % value
-                )
-            )
-            for key, value in params.items()
-        ]
-        sql_set = ',\n    '.join(sql_set_list)
-        sql = 'SHOW ' + (
-            'GLOBAL '
-            if self.glob
-            else ''
-        ) + sql_set
-
-        # Execute SQL.
-        self.engine.execute(sql)
+        # Update.
+        sql = ';\n'.join(
+            [
+                f'SET "{key}" = \'{value}\''
+                for key, value in params.items()
+            ]
+        )
+        self.engine.execute(sql, **params)
 
 
 class DatabaseInformationParameterAsync(DatabaseInformationParameterSuper['rengine.DatabaseEngineAsync']):
@@ -607,7 +451,7 @@ class DatabaseInformationParameterAsync(DatabaseInformationParameterSuper['rengi
 
     async def get(self, key: str | None = None) -> dict[str, str] | str | None:
         """
-        Asynchronous get parameter.
+        Get parameter.
 
         Parameters
         ----------
@@ -617,139 +461,40 @@ class DatabaseInformationParameterAsync(DatabaseInformationParameterSuper['rengi
 
         Returns
         -------
-        Status of database.
+        Parameter value or directory.
         """
 
-        # Generate SQL.
-        sql = 'SHOW ' + (
-            'GLOBAL '
-            if self.glob
-            else ''
-        ) + self.mode
+        # Get.
 
-        # Execute SQL.
-
-        ## Dictionary.
+        ## All.
         if key is None:
-            result = await self.engine.execute(sql, key=key)
-            status = result.to_dict(val_field=1)
+            sql = 'SHOW ALL'
+            result = await self.engine.execute(sql)
+            param = result.to_dict(val_field=1)
 
-        ## Value.
+        ## One.
         else:
-            sql += ' LIKE :key'
-            result = await self.engine.execute(sql, key=key)
-            row = result.first()
-            if row is None:
-                status = None
-            else:
-                status = row['Value']
+            sql = f'SHOW "{key}"'
+            result = await self.engine.execute(sql)
+            param = result.scalar()
 
-        return status
+        return param
 
 
     async def update(self, params: dict[str, str | float]) -> None:
         """
-        Asynchronous update parameter.
+        Update parameter.
 
         Parameters
         ----------
         params : Update parameter key value pairs.
         """
 
-        # Check.
-        if self.mode == 'STATUS':
-            raise AssertionError('database status not update')
-
-        # Generate SQL.
-        sql_set_list = [
-            '%s = %s' % (
-                key,
-                (
-                    value
-                    if type(value) in (int, float)
-                    else "'%s'" % value
-                )
-            )
-            for key, value in params.items()
-        ]
-        sql_set = ',\n    '.join(sql_set_list)
-        sql = 'SHOW ' + (
-            'GLOBAL '
-            if self.glob
-            else ''
-        ) + sql_set
-
-        # Execute SQL.
-        await self.engine.execute(sql)
-
-
-class DatabaseInformationParameterVariables(DatabaseInformationParameter):
-    """
-    Database information variable parameters type.
-    """
-
-    mode: Final = 'VARIABLES'
-    glob: Final = False
-
-
-class DatabaseInformationParameterStatus(DatabaseInformationParameter):
-    """
-    Database information status parameters type.
-    """
-
-    mode: Final = 'STATUS'
-    glob: Final = False
-
-
-class DatabaseInformationParameterVariablesGlobal(DatabaseInformationParameter):
-    """
-    Database information global variable parameters type.
-    """
-
-    mode: Final = 'VARIABLES'
-    glob: Final = True
-
-
-class DatabaseInformationParameterStatusGlobal(DatabaseInformationParameter):
-    """
-    Database information global status parameters type.
-    """
-
-    mode: Final = 'STATUS'
-    glob: Final = True
-
-
-class DatabaseInformationParameterVariablesAsync(DatabaseInformationParameterAsync):
-    """
-    Asynchronous database information variable parameters type.
-    """
-
-    mode: Final = 'VARIABLES'
-    glob: Final = False
-
-
-class DatabaseInformationParameterStatusAsync(DatabaseInformationParameterAsync):
-    """
-    Asynchronous database information status parameters type.
-    """
-
-    mode: Final = 'STATUS'
-    glob: Final = False
-
-
-class DatabaseInformationParameterVariablesGlobalAsync(DatabaseInformationParameterAsync):
-    """
-    Asynchronous database information global variable parameters type.
-    """
-
-    mode: Final = 'VARIABLES'
-    glob: Final = True
-
-
-class DatabaseInformationParameterStatusGlobalAsync(DatabaseInformationParameterAsync):
-    """
-    Asynchronous database information global status parameters type.
-    """
-
-    mode: Final = 'STATUS'
-    glob: Final = True
+        # Update.
+        sql = ';\n'.join(
+            [
+                f'SET "{key}" = \'{value}\''
+                for key, value in params.items()
+            ]
+        )
+        await self.engine.execute(sql, **params)

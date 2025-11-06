@@ -34,13 +34,13 @@ DatabaseEngineT = TypeVar('DatabaseEngineT', 'rengine.DatabaseEngine', 'rengine.
 
 class DatabaseORMTableError(rorm.Table):
     """
-    Database `error` table ORM model.
+    Database "error" table ORM model.
     """
 
     __name__ = 'error'
     __comment__ = 'Error log table.'
     create_time: rorm.Datetime = rorm.Field(field_default=':create_time', not_null=True, index_n=True, comment='Record create time.')
-    id: int = rorm.Field(rorm.types_mysql.INTEGER(unsigned=True), key_auto=True, comment='ID.')
+    id: int = rorm.Field(rorm.types.INTEGER, key_auto=True, comment='ID.')
     type: str = rorm.Field(rorm.types.VARCHAR(50), not_null=True, index_n=True, comment='Error type.')
     data: str = rorm.Field(rorm.types.JSON, comment='Error data.')
     stack: str = rorm.Field(rorm.types.JSON, comment='Error code traceback stack.')
@@ -50,7 +50,7 @@ class DatabaseORMTableError(rorm.Table):
 class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
     """
     Database error super type.
-    Can create database used `self.build_db` method.
+    Can create database used "self.build_db" method.
     """
 
     _checked: bool = False
@@ -95,13 +95,13 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## View stats.
         views_stats = [
             {
-                'path': 'stats_error',
+                'table': 'stats_error',
                 'items': [
                     {
                         'name': 'count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM `{database}`.`error`'
+                            f'FROM "error"'
                         ),
                         'comment': 'Error log count.'
                     },
@@ -109,8 +109,8 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'past_day_count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM `{database}`.`error`\n'
-                            'WHERE TIMESTAMPDIFF(DAY, `create_time`, NOW()) = 0'
+                            f'FROM "error"\n'
+                            'WHERE DATE_PART(\'day\', NOW() - "create_time") = 0'
                         ),
                         'comment': 'Error log count in the past day.'
                     },
@@ -118,8 +118,8 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'past_week_count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM `{database}`.`error`\n'
-                            'WHERE TIMESTAMPDIFF(DAY, `create_time`, NOW()) <= 6'
+                            f'FROM "error"\n'
+                            'WHERE DATE_PART(\'day\', NOW() - "create_time") <= 6'
                         ),
                         'comment': 'Error log count in the past week.'
                     },
@@ -127,16 +127,16 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'past_month_count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM `{database}`.`error`\n'
-                            'WHERE TIMESTAMPDIFF(DAY, `create_time`, NOW()) <= 29'
+                            f'FROM "error"\n'
+                            'WHERE DATE_PART(\'day\', NOW() - "create_time") <= 29'
                         ),
                         'comment': 'Error log count in the past month.'
                     },
                     {
                         'name': 'last_time',
                         'select': (
-                            'SELECT MAX(`create_time`)\n'
-                            f'FROM `{database}`.`error`'
+                            'SELECT MAX("create_time")\n'
+                            f'FROM "error"'
                         ),
                         'comment': 'Error log last record create time.'
                     }
@@ -188,7 +188,7 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
 class DatabaseError(DatabaseErrorSuper['rengine.DatabaseEngine']):
     """
     Database error type.
-    Can create database used `self.build_db` method.
+    Can create database used "self.build_db" method.
     """
 
 
@@ -365,7 +365,7 @@ class DatabaseError(DatabaseErrorSuper['rengine.DatabaseEngine']):
 class DatabaseErrorAsync(DatabaseErrorSuper['rengine.DatabaseEngineAsync']):
     """
     Asynchronous database error type.
-    Can create database used `self.build_db` method.
+    Can create database used "self.build_db" method.
     """
 
 
