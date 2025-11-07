@@ -761,7 +761,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         returning: str | Iterable[str] | None = None,
         echo: bool | None = None,
         **kwdata: Any
-    ) -> tuple[str, dict]:
+    ) -> Result:
         """
         Execute insert SQL.
 
@@ -1280,7 +1280,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         returning: str | Iterable[str] | None = None,
         echo: bool | None = None,
         **kwdata: Any
-    ) -> tuple[str, dict]:
+    ) -> Result:
         """
         Asynchronous execute insert SQL.
 

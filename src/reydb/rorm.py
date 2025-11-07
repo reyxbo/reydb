@@ -220,7 +220,7 @@ class DatabaseORMModelField(DatabaseORMBase, FieldInfo):
         self,
         field_type: TypeEngine | None = None,
         *,
-        field_default: str | Literal[':create_time'] | Literal[':update_time'] = None,
+        field_default: str | Literal[':time'] = None,
         arg_default: Any | Callable[[], Any] | Null.Type = Null,
         arg_update: Any | Callable[[], Any] = None,
         name: str | None = None,
@@ -257,8 +257,7 @@ class DatabaseORMModelField(DatabaseORMBase, FieldInfo):
         field_type : Database field type.
             - `None`: Based type annotation automatic judgment.
         field_default : Database field defualt value.
-            - `Literal[':create_time']`: Set SQL syntax 'DEFAULT CURRENT_TIMESTAMP'.
-            - `Literal[':update_time']`: Set SQL syntax 'DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP'.
+            - `Literal[':time']`: Set SQL syntax 'DEFAULT CURRENT_TIMESTAMP'.
         arg_default : Call argument default value.
             - `Callable[[], Any]`: Call function and use return value.
         arg_update : In `Session` management, When commit update record, then default value is this value.
@@ -345,10 +344,8 @@ class DatabaseORMModelField(DatabaseORMBase, FieldInfo):
         ## Field default.
         if 'field_default' in kwargs:
             field_default: str = kwargs.pop('field_default')
-            if field_default == ':create_time':
+            if field_default == ':time':
                 field_default = sqlalchemy_text('CURRENT_TIMESTAMP')
-            elif field_default == ':update_time':
-                field_default = sqlalchemy_text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')
             kwargs['sa_column_kwargs']['server_default'] = field_default
 
         ## Argument default.

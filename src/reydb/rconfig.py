@@ -17,6 +17,7 @@ from datetime import (
     timedelta as Timedelta
 )
 from reykit.rbase import Null, throw
+from reykit.rtime import now
 
 from . import rengine
 from . import rorm
@@ -45,8 +46,8 @@ class DatabaseORMTableConfig(rorm.Table):
 
     __name__ = 'config'
     __comment__ = 'Config data table.'
-    create_time: rorm.Datetime = rorm.Field(field_default=':create_time', not_null=True, index_n=True, comment='Config create time.')
-    update_time: rorm.Datetime = rorm.Field(field_default=':update_time', index_n=True, comment='Config update time.')
+    create_time: rorm.Datetime = rorm.Field(field_default=':time', not_null=True, index_n=True, comment='Config create time.')
+    update_time: rorm.Datetime = rorm.Field(field_default=':time', arg_default=now, index_n=True, comment='Config update time.')
     key: str = rorm.Field(rorm.types.VARCHAR(50), key=True, comment='Config key.')
     value: str = rorm.Field(rorm.types.TEXT, not_null=True, comment='Config value.')
     type: str = rorm.Field(rorm.types.VARCHAR(50), not_null=True, comment='Config value type.')
@@ -290,7 +291,8 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
             'config',
             data,
             'key',
-            'update'
+            'update',
+            update_time=':NOW()'
         )
 
 
@@ -607,7 +609,8 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
             'config',
             data,
             'key',
-            'update'
+            'update',
+            update_time=':NOW()'
         )
 
 
