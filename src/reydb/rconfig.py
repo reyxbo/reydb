@@ -256,7 +256,7 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
         result = self.engine.execute.insert(
             'config',
             data,
-            'ignore'
+            'key'
         )
 
         # Get.
@@ -289,6 +289,7 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
         self.engine.execute.insert(
             'config',
             data,
+            'key',
             'update'
         )
 
@@ -572,7 +573,7 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
         result = await self.engine.execute.insert(
             'config',
             data,
-            'ignore'
+            'key'
         )
 
         # Get.
@@ -605,6 +606,7 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
         await self.engine.execute.insert(
             'config',
             data,
+            'key',
             'update'
         )
 

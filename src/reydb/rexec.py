@@ -210,12 +210,34 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         return sql
 
 
+    @overload
     def handle_insert(
         self,
         table: str,
         data: TableData,
-        duplicate: Literal['ignore', 'update'] | Container[str] | None = None,
-        return_field: str | Iterable[str] = None,
+        *,
+        returning: str | Iterable[str] | None = None,
+        **kwdata: Any
+    ) -> tuple[str, dict]: ...
+
+    @overload
+    def handle_insert(
+        self,
+        table: str,
+        data: TableData,
+        conflict: str | Iterable[str] | None = None,
+        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        returning: str | Iterable[str] | None = None,
+        **kwdata: Any
+    ) -> tuple[str, dict]: ...
+
+    def handle_insert(
+        self,
+        table: str,
+        data: TableData,
+        conflict: str | Iterable[str] | None = None,
+        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        returning: str | Iterable[str] | None = None,
         **kwdata: Any
     ) -> tuple[str, dict]:
         """
@@ -225,12 +247,11 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         ----------
         table : Table name.
         data : Insert data.
-        duplicate : Handle method when constraint error.
-            - `None`: Not handled.
-            - `ignore`: Use `UPDATE IGNORE INTO` clause.
-            - `update`: Use `ON DUPLICATE KEY UPDATE` clause and update all fields.
-            - `Container[str]`: Use `ON DUPLICATE KEY UPDATE` clause and update this fields.
-        return_field : Return the fields of the inserted record.
+        conflict : Handle constraint conflict field names.
+        conflict_do : Handle constraint conflict method.
+            - `Literal['nothing']: Ignore conflict.
+            - `Literal['update']: Update to all insert data.
+        returning : Return the fields of the inserted record.
         kwdata : Keyword parameters for filling.
             - `str and first character is ':'`: Use this syntax.
             - `Any`: Use this value.
@@ -248,11 +269,13 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
                     for part in table.split('.')
                 ]
             )
-        if return_field is not None:
-            if type(return_field) == str:
-                if return_field != '*':
-                    return_field = f'"{return_field}"'
-                return_field = [return_field]
+        if type(conflict) == str:
+            conflict = (conflict,)
+        if returning is not None:
+            if type(returning) == str:
+                if returning != '*':
+                    returning = f'"{returning}"'
+                returning = [returning]
 
         ## Data.
         data_table = Table(data)
@@ -276,8 +299,9 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
                 kwdata_replace[key] = value
 
         # Generate SQL.
+        sqls = []
 
-        ## Part 'fields' syntax.
+        ## Part 'insert' syntax.
         fields_replace = {
             field
             for row in data
@@ -299,6 +323,8 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
                 for field in sql_fields_list
             ]
         )
+        sql_insert = f'INSERT INTO {table}({sql_fields})'
+        sqls.append(sql_insert)
 
         ## Part 'values' syntax.
         sql_values_list = (
@@ -312,49 +338,36 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
             ]
         )
         sql_values = ', '.join(sql_values_list)
+        sql_value = f'VALUES({sql_values})'
+        sqls.append(sql_value)
 
-        ## Join sql part.
-        match duplicate:
-
-            ### Not handle.
-            case None:
-                sql = (
-                    f'INSERT INTO {table}({sql_fields})\n'
-                    f'VALUES({sql_values})'
-                )
-
-            ### Ignore.
-            case 'ignore':
-                sql = (
-                    f'INSERT IGNORE INTO {table}({sql_fields})\n'
-                    f'VALUES({sql_values})'
-                )
-
-            ### Update.
-            case _:
-                sql_fields_list_update = sql_fields_list
-                if duplicate != 'update':
-                    sql_fields_list_update = [
-                        field
-                        for field in sql_fields_list
-                        if field in duplicate
-                    ]
-                update_content = ',\n    '.join(
+        ## Part 'conflict' syntax.
+        if conflict is not None:
+            sql_conflict = 'ON CONFLICT(%s)' % ', '.join(
+                [
+                    f'"{field}"'
+                    for field in conflict
+                ]
+            )
+            sqls.append(sql_conflict)
+            if conflict_do == 'nothing':
+                sql_conflict_do = 'DO NOTHING'
+            elif conflict_do == 'update':
+                sql_conflict_do = 'DO UPDATE SET\n    ' + ',\n    '.join(
                     [
-                        f'"{field}" = VALUES("{field}")'
-                        for field in sql_fields_list_update
+                        f'"{field}" = EXCLUDED."{field}"'
+                        for field in sql_fields_list
                     ]
                 )
-                sql = (
-                    f'INSERT INTO {table}({sql_fields})\n'
-                    f'VALUES({sql_values})\n'
-                    'ON DUPLICATE KEY UPDATE\n'
-                    f'    {update_content}'
-                )
+            sqls.append(sql_conflict_do)
 
         ## Part 'returning` syntax.
-        if return_field is not None:
-            sql += '\nRETURNING ' + ', '.join(return_field)
+        if returning is not None:
+            sql_returning = 'RETURNING ' + ', '.join(returning)
+            sqls.append(sql_returning)
+
+        ## Join sql part.
+        sql = '\n'.join(sqls)
 
         return sql, kwdata_replace
 
@@ -743,11 +756,12 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         self,
         table: str,
         data: TableData,
-        duplicate: Literal['ignore', 'update'] | Container[str] | None = None,
-        return_field: str | Iterable[str] = None,
+        conflict: str | Iterable[str] | None = None,
+        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        returning: str | Iterable[str] | None = None,
         echo: bool | None = None,
         **kwdata: Any
-    ) -> Result | int:
+    ) -> tuple[str, dict]:
         """
         Execute insert SQL.
 
@@ -755,12 +769,11 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         ----------
         table : Table name.
         data : Insert data.
-        duplicate : Handle method when constraint error.
-            - `None`: Not handled.
-            - `ignore`: Use `UPDATE IGNORE INTO` clause.
-            - `update`: Use `ON DUPLICATE KEY UPDATE` clause and update all fields.
-            - `Container[str]`: Use `ON DUPLICATE KEY UPDATE` clause and update this fields.
-        return_field : Return the fields of the inserted record.
+        conflict : Handle constraint conflict field names.
+        conflict_do : Handle constraint conflict method.
+            - `Literal['nothing']: Ignore conflict.
+            - `Literal['update']: Update to all insert data.
+        returning : Return the fields of the inserted record.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -784,7 +797,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         """
 
         # Parameter.
-        sql, kwdata = self.handle_insert(table, data, duplicate, return_field, **kwdata)
+        sql, kwdata = self.handle_insert(table, data, conflict, conflict_do, returning, **kwdata)
 
         # Execute SQL.
         result = self.execute(sql, data, echo, **kwdata)
@@ -1262,11 +1275,12 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         self,
         table: str,
         data: TableData,
-        duplicate: Literal['ignore', 'update'] | Container[str] | None = None,
-        return_field: str | Iterable[str] = None,
+        conflict: str | Iterable[str] | None = None,
+        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        returning: str | Iterable[str] | None = None,
         echo: bool | None = None,
         **kwdata: Any
-    ) -> Result | int:
+    ) -> tuple[str, dict]:
         """
         Asynchronous execute insert SQL.
 
@@ -1274,12 +1288,11 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         ----------
         table : Table name.
         data : Insert data.
-        duplicate : Handle method when constraint error.
-            - `None`: Not handled.
-            - `ignore`: Use `UPDATE IGNORE INTO` clause.
-            - `update`: Use `ON DUPLICATE KEY UPDATE` clause and update all fields.
-            - `Container[str]`: Use `ON DUPLICATE KEY UPDATE` clause and update this fields.
-        return_field : Return the fields of the inserted record.
+        conflict : Handle constraint conflict field names.
+        conflict_do : Handle constraint conflict method.
+            - `Literal['nothing']: Ignore conflict.
+            - `Literal['update']: Update to all insert data.
+        returning : Return the fields of the inserted record.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -1303,7 +1316,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         """
 
         # Parameter.
-        sql, kwdata = self.handle_insert(table, data, duplicate, return_field, **kwdata)
+        sql, kwdata = self.handle_insert(table, data, conflict, conflict_do, returning, **kwdata)
 
         # Execute SQL.
         result = await self.execute(sql, data, echo, **kwdata)

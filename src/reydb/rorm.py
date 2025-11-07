@@ -10,7 +10,7 @@
 
 
 from typing import Self, Any, Type, Literal, TypeVar, Generic, Final, NoReturn, overload
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from functools import wraps as functools_wraps
 from inspect import iscoroutinefunction as inspect_iscoroutinefunction
 from pydantic import (
@@ -19,7 +19,7 @@ from pydantic import (
     field_validator as pydantic_field_validator,
     model_validator as pydantic_model_validator
 )
-from sqlalchemy import Column, types, text as sqlalchemy_text
+from sqlalchemy import types, text as sqlalchemy_text
 from sqlalchemy.orm import SessionTransaction, load_only
 from sqlalchemy.orm.strategy_options import _AttrType
 from sqlalchemy.sql import func as sqlalchemy_func
@@ -41,6 +41,7 @@ from datetime import (
 )
 from warnings import filterwarnings
 from reykit.rbase import CallableT, Null, throw, is_instance
+from reykit.rtable import TableData, Table as RTable
 
 from . import rengine
 from .rbase import (
@@ -1766,76 +1767,81 @@ class DatabaseORMStatementInsertSuper(DatabaseORMStatementSuper, Insert):
     'Compatible type.'
 
 
-    def ignore(self) -> Self:
+    def values(self, data: TableData) -> Self:
         """
-        Add `IGNORE` syntax.
+        Add insert data.
+
+        Parameters
+        ----------
+        data : Insert data.
 
         Returns
         -------
         Set self.
         """
 
-        # Set.
-        insert = self.prefix_with('IGNORE')
+        # Parameter.
+        data_table = RTable(data)
+        data = data_table.to_table()
+
+        # Add.
+        insert = super().values(data)
 
         return insert
 
 
-    @overload
-    def update(self, *names: str) -> Self: ...
-
-    @overload
-    def update(self, **values: Any) -> Self: ...
-
-    @overload
-    def update(self) -> Self: ...
-
-    def update(self, *names: str, **values: Any) -> Self:
+    def nothing(self, conflict: str | Iterable[str]) -> Self:
         """
-        Add `ON DUPLICATE KEY UPDATE`.
+        Add `ON CONFLICT ... ON NOTHING` syntax.
 
         Parameters
         ----------
-        names : Field name. One to one update to this field value (i.e. `field = VALUE(field)`).
-        values : Scalar value. One to many update to this value (i.e. `field = :value`).
-            - `Empty`: All parameters omit. One to one update to all fields value (i.e. `field = VALUE(field), ...`).
+        conflict : Handle constraint conflict field names.
 
         Returns
         -------
         Set self.
-
-        Examples
-        --------
-        >>> data = [{'score': 1}, {'score': 2}]
-
-        Name.
-        >>> orm.insert(model).values(data).update('score')
-
-        Value.
-        >>> orm.insert(model).values(data).update(score=0)
-
-        Empty.
-        >>> orm.insert(model).values(data).update()
         """
 
+        # Parameter.
+        if type(conflict) == str:
+            conflict = (conflict,)
+
         # Set.
+        insert = self.on_conflict_do_nothing(index_elements=conflict)
 
-        ## Name.
-        if names != ():
-            columns: dict[str, Column] = {
-                name: self.inserted[name]
-                for name in names
-            }
-            insert = self.on_duplicate_key_update(**columns)
+        return insert
 
-        ## Value.
-        elif values != {}:
-            insert = self.on_duplicate_key_update(**values)
 
-        ## Empty.
-        else:
-            columns: dict[str, Column] = dict(self.inserted.items())
-            insert = self.on_duplicate_key_update(**columns)
+    def update(self, conflict: str | Iterable[str]) -> Self:
+        """
+        Add `ON CONFLICT ... ON UPDATE ...` syntax.
+
+        Parameters
+        ----------
+        conflict : Handle constraint conflict field names.
+
+        Parameters
+        ----------
+        conflict : Handle constraint conflict field names.
+
+        Returns
+        -------
+        Set self.
+        """
+
+        # Parameter.
+        if type(conflict) == str:
+            conflict = (conflict,)
+        data = self._multi_values[0]
+        row = data[0]
+
+        # Set.
+        set_ = {
+            field: self.excluded[field.name]
+            for field in row
+        }
+        insert = self.on_conflict_do_update(index_elements=conflict, set_=set_)
 
         return insert
 

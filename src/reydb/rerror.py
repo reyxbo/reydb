@@ -40,7 +40,7 @@ class DatabaseORMTableError(rorm.Table):
     __name__ = 'error'
     __comment__ = 'Error log table.'
     create_time: rorm.Datetime = rorm.Field(field_default=':create_time', not_null=True, index_n=True, comment='Record create time.')
-    id: int = rorm.Field(rorm.types.INTEGER, key_auto=True, comment='ID.')
+    id: int = rorm.Field(key_auto=True, comment='ID.')
     type: str = rorm.Field(rorm.types.VARCHAR(50), not_null=True, index_n=True, comment='Error type.')
     data: str = rorm.Field(rorm.types.JSON, comment='Error data.')
     stack: str = rorm.Field(rorm.types.JSON, comment='Error code traceback stack.')
