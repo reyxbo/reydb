@@ -11,7 +11,6 @@
 
 from typing import TypeVar, Generic
 from urllib.parse import quote as urllib_quote
-from pymysql.constants.CLIENT import MULTI_STATEMENTS
 from sqlalchemy import Engine, create_engine as sqlalchemy_create_engine
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine as sqlalchemy_create_async_engine
 from reykit.rbase import throw
