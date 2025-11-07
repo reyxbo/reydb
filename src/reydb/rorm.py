@@ -197,7 +197,7 @@ class DatabaseORMModelMeta(DatabaseORMBase, SQLModelMetaclass):
         ):
             table: STable = cls.__table__
             for index in table.indexes:
-                index_name = '_'.join(
+                index_name = table.name + '_'.join(
                     column.key
                     for column in index.expressions
                 )

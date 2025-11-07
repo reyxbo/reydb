@@ -1333,6 +1333,7 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
         # Refresh schema.
         if refresh_schema:
             self.engine.catalog()
+            refresh_schema = False
 
         # View.
         for params in views:
@@ -1357,6 +1358,7 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
             ## Report.
             text = f"View '{params['table']}' of database '{self.engine.database}' build completed."
             print(text)
+            refresh_schema = True
 
         # View stats.
         for params in views_stats:
@@ -1381,6 +1383,11 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
             ## Report.
             text = f"View '{params['table']}' of database '{self.engine.database}' build completed."
             print(text)
+            refresh_schema = True
+
+        # Refresh schema.
+        if refresh_schema:
+            self.engine.catalog()
 
 
     __call__ = build
