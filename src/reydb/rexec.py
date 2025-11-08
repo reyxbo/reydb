@@ -87,8 +87,6 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         """
 
         # Parameter.
-        echo = get_first_notnone(echo, self.conn.engine.echo)
-        sql = handle_sql(sql)
         if data is None:
             if kwdata == {}:
                 data = []
@@ -99,7 +97,9 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
             data = data_table.to_table()
             for row in data:
                 row.update(kwdata)
+        sql = handle_sql(sql, data)
         data = handle_data(data, sql)
+        echo = get_first_notnone(echo, self.conn.engine.echo)
 
         return sql, data, echo
 

@@ -11,7 +11,7 @@
 
 from typing import Any, TypedDict, Literal, TypeVar
 from enum import EnumType
-from sqlalchemy import Engine, Connection, Transaction, text as sqlalchemy_text
+from sqlalchemy import Engine, Connection, Transaction, text as sqlalchemy_text, bindparam as sqlalchemy_bindparam
 from sqlalchemy.orm import Session, SessionTransaction
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncConnection, AsyncTransaction, AsyncSession, AsyncSessionTransaction
 from sqlalchemy.engine.url import URL
@@ -62,13 +62,14 @@ class DatabaseBase(Base):
     """
 
 
-def handle_sql(sql: str | TextClause) -> TextClause:
+def handle_sql(sql: str | TextClause, data: list[dict]) -> TextClause:
     """
     Handle SQL.
 
     Parameters
     ----------
     sql : SQL in method `sqlalchemy.text` format, or TextClause object.
+    data : Data set for filling.
 
     Returns
     -------
@@ -78,12 +79,17 @@ def handle_sql(sql: str | TextClause) -> TextClause:
     # Parameter.
     if type(sql) == TextClause:
         sql = sql.text
+    row = data[0]
 
     # Handle.
     sql = sql.strip()
     if sql[-1] != ';':
         sql += ';'
     sql = sqlalchemy_text(sql)
+    for key, value in row.items():
+        if isinstance(value, (list, tuple)):
+            param = sqlalchemy_bindparam(key, expanding=True)
+            sql = sql.bindparams(param)
 
     return sql
 
