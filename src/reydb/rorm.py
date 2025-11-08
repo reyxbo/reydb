@@ -27,6 +27,7 @@ from sqlalchemy.sql.dml import Update, Delete
 from sqlalchemy.sql.sqltypes import TypeEngine
 from sqlalchemy.sql._typing import _ColumnExpressionArgument
 from sqlalchemy.ext.asyncio import AsyncSessionTransaction
+from sqlalchemy.dialects import postgresql as dialect
 from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.exc import SAWarning
 from sqlmodel import SQLModel, Session, Table as STable
@@ -2050,6 +2051,9 @@ types
 
 ## Database ORM model functions.
 funcs = sqlalchemy_func
+
+## Database PostgreSQL dialect.
+dialect
 
 ## Create decorator of validate database ORM model.
 wrap_validate_model = pydantic_model_validator
