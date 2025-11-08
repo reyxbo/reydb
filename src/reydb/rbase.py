@@ -134,7 +134,7 @@ def handle_data(data: list[dict], sql: str | TextClause) -> list[dict]:
 
             # Convert.
             elif (
-                type(value) in (list, dict)
+                isinstance(value, (list, dict))
                 and key not in sql_keys_in
             ):
                 value = to_json(value)
