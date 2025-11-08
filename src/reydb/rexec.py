@@ -23,7 +23,7 @@ from reykit.rtime import TimeMark, time_to
 from reykit.rwrap import wrap_runtime
 
 from . import rconn
-from .rbase import DatabaseBase, handle_sql, handle_data
+from .rbase import DatabaseBase, handle_sql_data
 
 
 __all__ = (
@@ -97,8 +97,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
             data = data_table.to_table()
             for row in data:
                 row.update(kwdata)
-        sql = handle_sql(sql, data)
-        data = handle_data(data, sql)
+        sql, data = handle_sql_data(sql, data)
         echo = get_first_notnone(echo, self.conn.engine.echo)
 
         return sql, data, echo

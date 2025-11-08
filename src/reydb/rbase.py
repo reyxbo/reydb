@@ -24,8 +24,7 @@ from reykit.rre import findall
 
 __all__ = (
     'DatabaseBase',
-    'handle_sql',
-    'handle_data',
+    'handle_sql_data',
     'extract_url',
     'extract_engine',
     'get_syntax',
@@ -62,9 +61,9 @@ class DatabaseBase(Base):
     """
 
 
-def handle_sql(sql: str | TextClause, data: list[dict]) -> TextClause:
+def handle_sql_data(sql: str | TextClause, data: list[dict]) -> tuple[TextClause, list[dict]]:
     """
-    Handle SQL.
+    Handle sql and data.
 
     Parameters
     ----------
@@ -73,14 +72,22 @@ def handle_sql(sql: str | TextClause, data: list[dict]) -> TextClause:
 
     Returns
     -------
-    TextClause instance.
+    TextClause instance and filled data.
     """
 
     # Parameter.
     if type(sql) == TextClause:
         sql = sql.text
 
-    # Handle.
+    ## Extract keys.
+    pattern = '(?<!\\\\):(\\w+)'
+    sql_keys = findall(pattern, sql)
+
+    ## Extract keys of syntax "in".
+    pattern = '[iI][nN]\\s+(?<!\\\\):(\\w+)'
+    sql_keys_in = findall(pattern, sql)
+
+    # Handle SQL.
     sql = sql.strip()
     if sql[-1] != ';':
         sql += ';'
@@ -88,40 +95,11 @@ def handle_sql(sql: str | TextClause, data: list[dict]) -> TextClause:
     if len(data) != 0:
         row = data[0]
         for key, value in row.items():
-            if isinstance(value, (list, tuple)):
+            if key in sql_keys_in:
                 param = sqlalchemy_bindparam(key, expanding=True)
                 sql = sql.bindparams(param)
 
-    return sql
-
-
-def handle_data(data: list[dict], sql: str | TextClause) -> list[dict]:
-    """
-    Handle data based on the content of SQL.
-
-    Parameters
-    ----------
-    data : Data set for filling.
-    sql : SQL in method `sqlalchemy.text` format, or TextClause object.
-
-    Returns
-    -------
-    Filled data.
-    """
-
-    # Parameter.
-    if type(sql) == TextClause:
-        sql = sql.text
-
-    # Extract keys.
-    pattern = '(?<!\\\\):(\\w+)'
-    sql_keys = findall(pattern, sql)
-
-    # Extract keys of syntax "in".
-    pattern = '[iI][nN]\\s+(?<!\\\\):(\\w+)'
-    sql_keys_in = findall(pattern, sql)
-
-    # Loop.
+    # Handle data.
     for row in data:
         if row == {}:
             continue
@@ -145,7 +123,7 @@ def handle_data(data: list[dict], sql: str | TextClause) -> list[dict]:
 
             row[key] = value
 
-    return data
+    return sql, data
 
 
 def extract_url(url: str | URL) -> URLParameters:
