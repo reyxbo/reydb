@@ -329,7 +329,7 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         ## Join.
         sql_fields = ',\n    '.join(sql_fields)
         sql = (
-            f'CREATE TABLE "{table}"(\n'
+            f'CREATE TABLE "{table}" (\n'
             f'    {sql_fields}\n'
             f') ENGINE={engine} AUTO_INCREMENT={increment} CHARSET={charset} COLLATE={collate}{sql_comment}'
         )

@@ -108,7 +108,7 @@ class DatabaseConfigSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM `config`'
+                            'FROM `config`'
                         ),
                         'comment': 'Config count.'
                     },
@@ -116,7 +116,7 @@ class DatabaseConfigSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'last_create_time',
                         'select': (
                             'SELECT MAX(`create_time`)\n'
-                            f'FROM `config`'
+                            'FROM `config`'
                         ),
                         'comment': 'Config last record create time.'
                     },
@@ -124,7 +124,7 @@ class DatabaseConfigSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'last_update_time',
                         'select': (
                             'SELECT MAX(`update_time`)\n'
-                            f'FROM `config`'
+                            'FROM `config`'
                         ),
                         'comment': 'Config last record update time.'
                     }

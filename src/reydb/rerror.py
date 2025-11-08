@@ -101,7 +101,7 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM "error"'
+                            'FROM "error"'
                         ),
                         'comment': 'Error log count.'
                     },
@@ -109,7 +109,7 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'past_day_count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM "error"\n'
+                            'FROM "error"\n'
                             'WHERE DATE_PART(\'day\', NOW() - "create_time") = 0'
                         ),
                         'comment': 'Error log count in the past day.'
@@ -118,7 +118,7 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'past_week_count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM "error"\n'
+                            'FROM "error"\n'
                             'WHERE DATE_PART(\'day\', NOW() - "create_time") <= 6'
                         ),
                         'comment': 'Error log count in the past week.'
@@ -127,7 +127,7 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'past_month_count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            f'FROM "error"\n'
+                            'FROM "error"\n'
                             'WHERE DATE_PART(\'day\', NOW() - "create_time") <= 29'
                         ),
                         'comment': 'Error log count in the past month.'
@@ -136,7 +136,7 @@ class DatabaseErrorSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'last_time',
                         'select': (
                             'SELECT MAX("create_time")\n'
-                            f'FROM "error"'
+                            'FROM "error"'
                         ),
                         'comment': 'Error log last record create time.'
                     }
