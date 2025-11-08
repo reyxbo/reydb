@@ -175,7 +175,7 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
         result = self.engine.execute.select(
             'config',
             ['key', 'value', 'note'],
-            order='IFNULL("update_time", "create_time") DESC'
+            order='COALESCE("update_time", "create_time") DESC'
         )
 
         # Convert.
@@ -493,7 +493,7 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
         result = await self.engine.execute.select(
             'config',
             ['key', 'value', 'note'],
-            order='IFNULL("update_time", "create_time") DESC'
+            order='COALESCE("update_time", "create_time") DESC'
         )
 
         # Convert.
