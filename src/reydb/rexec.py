@@ -123,7 +123,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
-            - `Iterable[str]`, Join as `SELECT ``str``: ...`.
+            - `Iterable[str]`: Join as `SELECT "str", ...`.
                 `str and first character is ':'`: Use this syntax.
                 `str`: Use this field.
         where : Clause `WHERE` content, join as `WHERE str`.
@@ -570,7 +570,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
-            - `Iterable[str]`: Join as `SELECT str`.
+            - `Iterable[str]`: Join as `SELECT "str", ...`.
         where : Clause `WHERE` content, join as `WHERE str`.
         limit : Clause `LIMIT` content.
             - `int | str`: Join as `LIMIT int/str`.
@@ -720,7 +720,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
-            - `Iterable[str]`, Join as `SELECT ``str``: ...`.
+            - `Iterable[str]`: Join as `SELECT "str", ...`.
                 `str and first character is ':'`: Use this syntax.
                 `str`: Use this field.
         where : Clause `WHERE` content, join as `WHERE str`.
@@ -892,7 +892,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Examples
         --------
-        >>> where = '`id` IN :ids'
+        >>> where = '"id" IN :ids'
         >>> ids = (1, 2)
         >>> result = Database.execute.delete('table', where, ids=ids)
         >>> print(result.rowcount)
@@ -926,7 +926,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
-            - `Iterable[str]`: Join as `SELECT str`.
+            - `Iterable[str]`: Join as `SELECT "str", ...`.
         where : Clause `WHERE` content, join as `WHERE str`.
         limit : Clause `LIMIT` content.
             - `int | str`: Join as `LIMIT int/str`.
@@ -941,7 +941,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Examples
         --------
-        >>> where = '`id` IN :ids'
+        >>> where = '"id" IN :ids'
         >>> ids = (1, 2, 3)
         >>> result = Database.execute.copy('table', where, 2, ids=ids, id=None, time=':NOW()')
         >>> print(result.rowcount)
@@ -983,7 +983,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
 
         Examples
         --------
-        >>> where = '`id` IN :ids'
+        >>> where = '"id" IN :ids'
         >>> ids = (1, 2)
         >>> result = Database.execute.count('table', where, ids=ids)
         >>> print(result)
@@ -1025,7 +1025,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         --------
         >>> data = [{'id': 1}]
         >>> Database.execute.insert('table', data)
-        >>> where = '`id` = :id_'
+        >>> where = '"id" = :id_'
         >>> id_ = 1
         >>> result = Database.execute.exist('table', where, id_=id_)
         >>> print(result)
@@ -1240,7 +1240,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
-            - `Iterable[str]`, Join as `SELECT ``str``: ...`.
+            - `Iterable[str]`: Join as `SELECT "str", ...`.
                 `str and first character is ':'`: Use this syntax.
                 `str`: Use this field.
         where : Clause `WHERE` content, join as `WHERE str`.
@@ -1412,7 +1412,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Examples
         --------
-        >>> where = '`id` IN :ids'
+        >>> where = '"id" IN :ids'
         >>> ids = (1, 2)
         >>> result = await Database.execute.delete('table', where, ids=ids)
         >>> print(result.rowcount)
@@ -1446,7 +1446,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         fields : Select clause content.
             - `None`: Is `SELECT *`.
             - `str`: Join as `SELECT str`.
-            - `Iterable[str]`: Join as `SELECT str`.
+            - `Iterable[str]`: Join as `SELECT "str", ...`.
         where : Clause `WHERE` content, join as `WHERE str`.
         limit : Clause `LIMIT` content.
             - `int | str`: Join as `LIMIT int/str`.
@@ -1461,7 +1461,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Examples
         --------
-        >>> where = '`id` IN :ids'
+        >>> where = '"id" IN :ids'
         >>> ids = (1, 2, 3)
         >>> result = await Database.execute.copy('table', ['name', 'value'], where, 2, ids=ids)
         >>> print(result.rowcount)
@@ -1503,7 +1503,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
 
         Examples
         --------
-        >>> where = '`id` IN :ids'
+        >>> where = '"id" IN :ids'
         >>> ids = (1, 2)
         >>> result = await Database.execute.count('table', where, ids=ids)
         >>> print(result)
@@ -1545,7 +1545,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         --------
         >>> data = [{'id': 1}]
         >>> Database.execute.insert('table', data)
-        >>> where = '`id` = :id_'
+        >>> where = '"id" = :id_'
         >>> id_ = 1
         >>> result = await Database.execute.exist('table', where, id_=id_)
         >>> print(result)

@@ -108,23 +108,23 @@ class DatabaseConfigSuper(DatabaseBase, Generic[DatabaseEngineT]):
                         'name': 'count',
                         'select': (
                             'SELECT COUNT(1)\n'
-                            'FROM `config`'
+                            'FROM "config"'
                         ),
                         'comment': 'Config count.'
                     },
                     {
                         'name': 'last_create_time',
                         'select': (
-                            'SELECT MAX(`create_time`)\n'
-                            'FROM `config`'
+                            'SELECT MAX("create_time")\n'
+                            'FROM "config"'
                         ),
                         'comment': 'Config last record create time.'
                     },
                     {
                         'name': 'last_update_time',
                         'select': (
-                            'SELECT MAX(`update_time`)\n'
-                            'FROM `config`'
+                            'SELECT MAX("update_time")\n'
+                            'FROM "config"'
                         ),
                         'comment': 'Config last record update time.'
                     }
@@ -207,10 +207,10 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
         """
 
         # Get.
-        where = '`key` = :key'
+        where = '"key" = :key'
         result = self.engine.execute.select(
             'config',
-            '`value`',
+            ('value',),
             where,
             limit=1,
             key=key
@@ -307,10 +307,10 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
 
         # Remove.
         if type(key) == str:
-            where = '`key` = :key'
+            where = '"key" = :key'
             limit = 1
         else:
-            where = '`key` in :key'
+            where = '"key" in :key'
             limit = None
         result = self.engine.execute.delete(
             'config',
@@ -362,7 +362,7 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
         # Get.
         result = self.engine.execute.select(
             'config',
-            '`key`'
+            ('key',)
         )
 
         # Convert.
@@ -387,7 +387,7 @@ class DatabaseConfig(DatabaseConfigSuper['rengine.DatabaseEngine']):
         # Get.
         result = self.engine.execute.select(
             'config',
-            '`value`'
+            ('value',)
         )
 
         # Convert.
@@ -525,10 +525,10 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
         """
 
         # Get.
-        where = '`key` = :key'
+        where = '"key" = :key'
         result = await self.engine.execute.select(
             'config',
-            '`value`',
+            ('value',),
             where,
             limit=1,
             key=key
@@ -625,10 +625,10 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
 
         # Remove.
         if type(key) == str:
-            where = '`key` = :key'
+            where = '"key" = :key'
             limit = 1
         else:
-            where = '`key` in :key'
+            where = '"key" in :key'
             limit = None
         result = await self.engine.execute.delete(
             'config',
@@ -680,7 +680,7 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
         # Get.
         result = await self.engine.execute.select(
             'config',
-            '`key`'
+            ('key',)
         )
 
         # Convert.
@@ -705,7 +705,7 @@ class DatabaseConfigAsync(DatabaseConfigSuper['rengine.DatabaseEngineAsync']):
         # Get.
         result = await self.engine.execute.select(
             'config',
-            '`value`'
+            ('value',)
         )
 
         # Convert.
