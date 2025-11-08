@@ -79,17 +79,18 @@ def handle_sql(sql: str | TextClause, data: list[dict]) -> TextClause:
     # Parameter.
     if type(sql) == TextClause:
         sql = sql.text
-    row = data[0]
 
     # Handle.
     sql = sql.strip()
     if sql[-1] != ';':
         sql += ';'
     sql = sqlalchemy_text(sql)
-    for key, value in row.items():
-        if isinstance(value, (list, tuple)):
-            param = sqlalchemy_bindparam(key, expanding=True)
-            sql = sql.bindparams(param)
+    if len(data) != 0:
+        row = data[0]
+        for key, value in row.items():
+            if isinstance(value, (list, tuple)):
+                param = sqlalchemy_bindparam(key, expanding=True)
+                sql = sql.bindparams(param)
 
     return sql
 

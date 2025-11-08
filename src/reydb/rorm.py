@@ -1778,6 +1778,10 @@ class DatabaseORMStatementInsertSuper(DatabaseORMStatementSuper, Insert):
         Set self.
         """
 
+        # Check.
+        if len(data) == 0:
+            throw(ValueError, data)
+
         # Parameter.
         data_table = RTable(data)
         data = data_table.to_table()
