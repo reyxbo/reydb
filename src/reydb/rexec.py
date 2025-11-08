@@ -226,7 +226,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         table: str,
         data: TableData,
         conflict: str | Iterable[str] | None = None,
-        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        conflict_do: Literal['nothing', 'update'] | str | Iterable[str] = 'nothing',
         returning: str | Iterable[str] | None = None,
         **kwdata: Any
     ) -> tuple[str, dict]: ...
@@ -236,7 +236,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         table: str,
         data: TableData,
         conflict: str | Iterable[str] | None = None,
-        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        conflict_do: Literal['nothing', 'update'] | str | Iterable[str] = 'nothing',
         returning: str | Iterable[str] | None = None,
         **kwdata: Any
     ) -> tuple[str, dict]:
@@ -251,6 +251,7 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         conflict_do : Handle constraint conflict method.
             - `Literal['nothing']: Ignore conflict.
             - `Literal['update']: Update to all insert data.
+            - `str | Iterable[str]`: Update to this fields insert data.
         returning : Return the fields of the inserted record.
         kwdata : Keyword parameters for filling.
             - `str and first character is ':'`: Use this syntax.
@@ -352,11 +353,20 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
             sqls.append(sql_conflict)
             if conflict_do == 'nothing':
                 sql_conflict_do = 'DO NOTHING'
-            elif conflict_do == 'update':
+            else:
+                if (
+                    conflict_do != 'update'
+                    and type(conflict_do) == str
+                ):
+                    conflict_do = (conflict_do,)
                 sql_conflict_do = 'DO UPDATE SET\n    ' + ',\n    '.join(
                     [
                         f'"{field}" = EXCLUDED."{field}"'
                         for field in sql_fields_list
+                        if (
+                            conflict_do == 'update'
+                            or field in conflict_do
+                        )
                     ]
                 )
             sqls.append(sql_conflict_do)
@@ -757,7 +767,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         table: str,
         data: TableData,
         conflict: str | Iterable[str] | None = None,
-        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        conflict_do: Literal['nothing', 'update'] | str | Iterable[str] = 'nothing',
         returning: str | Iterable[str] | None = None,
         echo: bool | None = None,
         **kwdata: Any
@@ -773,6 +783,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         conflict_do : Handle constraint conflict method.
             - `Literal['nothing']: Ignore conflict.
             - `Literal['update']: Update to all insert data.
+            - `str | Iterable[str]`: Update to this fields insert data.
         returning : Return the fields of the inserted record.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
@@ -1276,7 +1287,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         table: str,
         data: TableData,
         conflict: str | Iterable[str] | None = None,
-        conflict_do: Literal['nothing', 'update'] = 'nothing',
+        conflict_do: Literal['nothing', 'update'] | str | Iterable[str] = 'nothing',
         returning: str | Iterable[str] | None = None,
         echo: bool | None = None,
         **kwdata: Any
@@ -1292,6 +1303,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         conflict_do : Handle constraint conflict method.
             - `Literal['nothing']: Ignore conflict.
             - `Literal['update']: Update to all insert data.
+            - `str | Iterable[str]`: Update to this fields insert data.
         returning : Return the fields of the inserted record.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.

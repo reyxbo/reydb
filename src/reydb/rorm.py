@@ -1811,13 +1811,19 @@ class DatabaseORMStatementInsertSuper(DatabaseORMStatementSuper, Insert):
         return insert
 
 
-    def update(self, conflict: str | Iterable[str]) -> Self:
+    def update(
+        self,
+        conflict: str | Iterable[str],
+        fields: str | Iterable[str] | None = None
+    ) -> Self:
         """
         Add `ON CONFLICT ... ON UPDATE ...` syntax.
 
         Parameters
         ----------
         conflict : Handle constraint conflict field names.
+        fields : Update fields.
+            - `None`: All fields.
 
         Parameters
         ----------
@@ -1831,6 +1837,8 @@ class DatabaseORMStatementInsertSuper(DatabaseORMStatementSuper, Insert):
         # Parameter.
         if type(conflict) == str:
             conflict = (conflict,)
+        if type(fields) == str:
+            fields = (fields,)
         data = self._multi_values[0]
         row = data[0]
 
@@ -1838,6 +1846,10 @@ class DatabaseORMStatementInsertSuper(DatabaseORMStatementSuper, Insert):
         set_ = {
             field: self.excluded[field.name]
             for field in row
+            if (
+                fields is None
+                or field in fields
+            )
         }
         insert = self.on_conflict_do_update(index_elements=conflict, set_=set_)
 
