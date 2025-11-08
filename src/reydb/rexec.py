@@ -386,8 +386,6 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         self,
         table: str,
         data: TableData,
-        order: str | None = None,
-        limit: int | str | tuple[int, int] | None = None,
         **kwdata: Any
     ) -> tuple[str, dict]:
         """
@@ -399,10 +397,6 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         data : Update data, join as `key = :value`.
             - `Key`: Table field, each row of fields must be the same, the first field is `WHERE` content.
             - `Value`: Table value.
-        order : Clause `ORDER BY` content, join as `ORDER BY str`.
-        limit : Clause `LIMIT` content.
-            - `int | str`: Join as `LIMIT int/str`.
-            - `tuple[int, int]`: Join as `LIMIT int, int`.
         kwdata : Keyword parameters for filling.
             - `str and first character is ':'`: Use this syntax.
             - `Any`: Use this value.
@@ -472,22 +466,6 @@ class DatabaseExecuteSuper(DatabaseBase, Generic[DatabaseConnectionT]):
         ## Part 'WHERE' syntax.
         sql_where = f'WHERE "{where_filed}" = :{where_filed}'
         sql_list.append(sql_where)
-
-        ## Part 'ORDER BY' syntax.
-        if order is not None:
-            sql_order = f'ORDER BY {order}'
-            sql_list.append(sql_order)
-
-        ## Part 'LIMIT' syntax.
-        if limit is not None:
-            if type(limit) in (str, int):
-                sql_limit = f'LIMIT {limit}'
-            else:
-                if len(limit) == 2:
-                    sql_limit = f'LIMIT {limit[0]}, {limit[1]}'
-                else:
-                    throw(ValueError, limit)
-            sql_list.append(sql_limit)
 
         ## Join sql part.
         sql = '\n'.join(sql_list)
@@ -820,8 +798,6 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         self,
         table: str,
         data: TableData,
-        order: str | None = None,
-        limit: int | str | tuple[int, int] | None = None,
         echo: bool | None = None,
         **kwdata: Any
     ) -> Result:
@@ -834,10 +810,6 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         data : Update data, join as `key = :value`.
             - `Key`: Table field, each row of fields must be the same, the first field is `WHERE` content.
             - `Value`: Table value.
-        order : Clause `ORDER BY` content, join as `ORDER BY str`.
-        limit : Clause `LIMIT` content.
-            - `int | str`: Join as `LIMIT int/str`.
-            - `tuple[int, int]`: Join as `LIMIT int, int`.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -856,7 +828,7 @@ class DatabaseExecute(DatabaseExecuteSuper['rconn.DatabaseConnection']):
         """
 
         # Parameter.
-        sql, data = self.handle_update(table, data, order, limit, **kwdata)
+        sql, data = self.handle_update(table, data, **kwdata)
 
         # Execute SQL.
         result = self.execute(sql, data, echo)
@@ -1340,8 +1312,6 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         self,
         table: str,
         data: TableData,
-        order: str | None = None,
-        limit: int | str | tuple[int, int] | None = None,
         echo: bool | None = None,
         **kwdata: Any
     ) -> Result:
@@ -1354,10 +1324,6 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         data : Update data, join as `key = :value`.
             - `Key`: Table field, each row of fields must be the same, the first field is `WHERE` content.
             - `Value`: Table value.
-        order : Clause `ORDER BY` content, join as `ORDER BY str`.
-        limit : Clause `LIMIT` content.
-            - `int | str`: Join as `LIMIT int/str`.
-            - `tuple[int, int]`: Join as `LIMIT int, int`.
         echo : Whether report SQL execute information.
             - `None`: Use attribute `Database.echo`.
         kwdata : Keyword parameters for filling.
@@ -1376,7 +1342,7 @@ class DatabaseExecuteAsync(DatabaseExecuteSuper['rconn.DatabaseConnectionAsync']
         """
 
         # Parameter.
-        sql, data = self.handle_update(table, data, order, limit, **kwdata)
+        sql, data = self.handle_update(table, data, **kwdata)
 
         # Execute SQL.
         result = await self.execute(sql, data, echo)

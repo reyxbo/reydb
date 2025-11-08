@@ -134,10 +134,6 @@ class DatabaseORMModelMeta(DatabaseORMBase, SQLModelMetaclass):
         table_args['quote'] = True
         table_name = name.lower()
 
-        ## Charset.
-        attrs.setdefault('__charset__', 'utf8mb4')
-        table_args['mysql_charset'] = attrs.pop('__charset__')
-
         ## Name.
         if '__name__' in attrs:
             attrs['__tablename__'] = table_name = attrs.pop('__name__')
@@ -1917,25 +1913,6 @@ class DatabaseORMStatementUpdateSuper(DatabaseORMStatementSuper, Update):
         return stmt
 
 
-    def limit(self, number: int) -> Self:
-        """
-        Set `limit` syntax.
-
-        Parameters
-        ----------
-        number : Limit number.
-
-        Returns
-        -------
-        Set self.
-        """
-
-        # Set.
-        update = self.with_dialect_options(mysql_limit=number)
-
-        return update
-
-
 class DatabaseORMStatementUpdate(DatabaseORMStatement, DatabaseORMStatementUpdateSuper):
     """
     Database ORM `update` statement type.
@@ -1990,25 +1967,6 @@ class DatabaseORMStatementDeleteSuper(DatabaseORMStatementSuper, Delete):
         stmt = super().where(*clauses)
 
         return stmt
-
-
-    def limit(self, number: int) -> Self:
-        """
-        Set `limit` syntax.
-
-        Parameters
-        ----------
-        number : Limit number.
-
-        Returns
-        -------
-        Set self.
-        """
-
-        # Set.
-        update = self.with_dialect_options(mysql_limit=number)
-
-        return update
 
 
 class DatabaseORMStatementDelete(DatabaseORMStatement, DatabaseORMStatementDeleteSuper):

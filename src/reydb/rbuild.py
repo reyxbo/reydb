@@ -924,8 +924,6 @@ class DatabaseBuildSuper(DatabaseBase, Generic[DatabaseEngineT]):
         # Get.
         table = model._get_table()
         text = f'TABLE "{table}"'
-        if 'mysql_charset' in table.kwargs:
-            text += f" | CHARSET '{table.kwargs['mysql_charset']}'"
         if table.comment:
             text += f" | COMMENT '{table.comment}'"
 
