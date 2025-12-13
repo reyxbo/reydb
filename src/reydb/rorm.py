@@ -21,14 +21,12 @@ from pydantic import (
 )
 from sqlalchemy import types, text as sqlalchemy_text
 from sqlalchemy.orm import SessionTransaction, load_only
-from sqlalchemy.orm.strategy_options import _AttrType
 from sqlalchemy.sql import func as sqlalchemy_func
 from sqlalchemy.sql.dml import Update, Delete
 from sqlalchemy.sql.sqltypes import TypeEngine
 from sqlalchemy.sql._typing import _ColumnExpressionArgument
 from sqlalchemy.ext.asyncio import AsyncSessionTransaction
-from sqlalchemy.dialects import postgresql as dialect
-from sqlalchemy.dialects.postgresql import Insert
+from sqlalchemy.dialects.postgresql import Insert, JSONB, ENUM
 from sqlalchemy.exc import SAWarning
 from sqlmodel import SQLModel, Session, Table as STable
 from sqlmodel.main import SQLModelMetaclass, FieldInfo, default_registry
@@ -2006,12 +2004,11 @@ ModelConfig
 
 ## Database ORM model filed types.
 types
+JSONB
+ENUM
 
 ## Database ORM model functions.
 funcs = sqlalchemy_func
-
-## Database PostgreSQL dialect.
-dialect
 
 ## Create decorator of validate database ORM model.
 wrap_validate_model = pydantic_model_validator
