@@ -1120,7 +1120,7 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
                     self.input_confirm_build(text)
 
                 ## Execute.
-                self.create_orm_table(params)
+                self.create_orm_table(params, skip=skip)
 
             ## Report.
             text = f"Table '{table}' of database '{self.engine.database}' build completed."
@@ -1321,7 +1321,7 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
                     self.input_confirm_build(text)
 
                 ## Execute.
-                await self.create_orm_table(params)
+                await self.create_orm_table(params, skip=skip)
 
             ## Report.
             text = f"Table '{table}' of database '{self.engine.database}' build completed."

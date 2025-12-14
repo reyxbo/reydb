@@ -315,6 +315,19 @@ class DatabaseORMModelField(DatabaseORMBase, FieldInfo):
                     kwargs[key] = value
 
         ## Field type.
+        if (
+            isinstance(field_type, ENUM)
+            and field_type.enum_class is not None
+        ):
+            enums = [
+                enum.value
+                for enum in field_type.enum_class
+            ]
+            field_type = ENUM(
+                *enums,
+                name=field_type.name,
+                create_type=field_type.create_type
+            )
         if field_type is not None:
             kwargs['sa_type'] = field_type
 
