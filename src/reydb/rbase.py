@@ -110,12 +110,16 @@ def handle_sql_data(sql: str | TextClause, data: list[dict]) -> tuple[TextClause
             if value == '':
                 value = None
 
-            # Convert.
+            # JSON.
             elif (
-                isinstance(value, (list, dict))
+                isinstance(value, list)
                 and key not in sql_keys_in
-            ):
+            ) or isinstance(value, dict):
                 value = to_json(value)
+
+            # Array.
+            elif isinstance(value, tuple):
+                value = list(value)
 
             # Enum.
             elif isinstance(type(value), EnumType):
