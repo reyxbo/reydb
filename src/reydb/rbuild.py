@@ -999,7 +999,7 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
 
     def create_orm_table(
         self,
-        *models: Type[rorm.Model] | rorm.Model,
+        *models: type[rorm.Model] | rorm.Model,
         skip: bool = False
     ) -> None:
         """
@@ -1017,7 +1017,7 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
 
     def drop_orm_table(
         self,
-        *models: Type[rorm.Model] | rorm.Model,
+        *models: type[rorm.Model] | rorm.Model,
         skip: bool = False
     ) -> None:
         """
@@ -1036,7 +1036,7 @@ class DatabaseBuild(DatabaseBuildSuper['rengine.DatabaseEngine']):
     def build(
         self,
         databases: list[dict] | None = None,
-        tables: list[dict | Type[rorm.Model] | rorm.Model] | None = None,
+        tables: list[dict | type[rorm.Model] | rorm.Model] | None = None,
         views: list[dict] | None = None,
         views_stats: list[dict] | None = None,
         ask: bool = True,
@@ -1198,7 +1198,7 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
 
     async def create_orm_table(
         self,
-        *models: Type[rorm.Model] | rorm.Model,
+        *models: type[rorm.Model] | rorm.Model,
         skip: bool = False
     ) -> None:
         """
@@ -1216,7 +1216,7 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
 
     async def drop_orm_table(
         self,
-        *models: Type[rorm.Model] | rorm.Model,
+        *models: type[rorm.Model] | rorm.Model,
         skip: bool = False
     ) -> None:
         """
@@ -1236,7 +1236,7 @@ class DatabaseBuildAsync(DatabaseBuildSuper['rengine.DatabaseEngineAsync']):
         self,
         databases: list[dict] | None = None,
         tables: list[dict] | None = None,
-        tables_orm: list[Type[rorm.Model]] | None = None,
+        tables_orm: list[type[rorm.Model]] | None = None,
         views: list[dict] | None = None,
         views_stats: list[dict] | None = None,
         ask: bool = True,

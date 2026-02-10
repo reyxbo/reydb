@@ -682,7 +682,7 @@ class DatabaseORMSessionSuper(
         self.begin: SessionTransactionT | None = None
 
 
-    def select(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementSelectT:
+    def select(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementSelectT:
         """
         Build database ORM select instance.
 
@@ -709,7 +709,7 @@ class DatabaseORMSessionSuper(
         return select
 
 
-    def insert(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementInsertT:
+    def insert(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementInsertT:
         """
         Build database ORM insert instance.
 
@@ -736,7 +736,7 @@ class DatabaseORMSessionSuper(
         return insert
 
 
-    def update(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementUpdateT:
+    def update(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementUpdateT:
         """
         Build database ORM update instance.
 
@@ -763,7 +763,7 @@ class DatabaseORMSessionSuper(
         return update
 
 
-    def delete(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementDeleteT:
+    def delete(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> DatabaseORMStatementDeleteT:
         """
         Build database ORM delete instance.
 
@@ -959,7 +959,7 @@ class DatabaseORMSession(
     @wrap_transact
     def create(
         self,
-        *models: Type[DatabaseORMModel] | DatabaseORMModel,
+        *models: type[DatabaseORMModel] | DatabaseORMModel,
         skip: bool = False
     ) -> None:
         """
@@ -988,7 +988,7 @@ class DatabaseORMSession(
     @wrap_transact
     def drop(
         self,
-        *models: Type[DatabaseORMModel] | DatabaseORMModel,
+        *models: type[DatabaseORMModel] | DatabaseORMModel,
         skip: bool = False
     ) -> None:
         """
@@ -1015,7 +1015,7 @@ class DatabaseORMSession(
 
 
     @wrap_transact
-    def get(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT, key: Any | tuple[Any]) -> DatabaseORMModelT | None:
+    def get(self, model: type[DatabaseORMModelT] | DatabaseORMModelT, key: Any | tuple[Any]) -> DatabaseORMModelT | None:
         """
         Select records by primary key.
 
@@ -1049,7 +1049,7 @@ class DatabaseORMSession(
 
 
     @wrap_transact
-    def gets(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT, *keys: Any | tuple[Any]) -> list[DatabaseORMModelT]:
+    def gets(self, model: type[DatabaseORMModelT] | DatabaseORMModelT, *keys: Any | tuple[Any]) -> list[DatabaseORMModelT]:
         """
         Select records by primary key sequence.
 
@@ -1080,7 +1080,7 @@ class DatabaseORMSession(
 
 
     @wrap_transact
-    def all(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> list[DatabaseORMModelT]:
+    def all(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> list[DatabaseORMModelT]:
         """
         Select all records.
 
@@ -1165,7 +1165,7 @@ class DatabaseORMSession(
 
 
     @overload
-    def select(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> 'DatabaseORMStatementSelect[DatabaseORMModelT]': ...
+    def select(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> 'DatabaseORMStatementSelect[DatabaseORMModelT]': ...
 
     select = DatabaseORMSessionSuper.select
 
@@ -1337,7 +1337,7 @@ class DatabaseORMSessionAsync(
     @wrap_transact
     async def create(
         self,
-        *models: Type[DatabaseORMModel] | DatabaseORMModel,
+        *models: type[DatabaseORMModel] | DatabaseORMModel,
         skip: bool = False
     ) -> None:
         """
@@ -1367,7 +1367,7 @@ class DatabaseORMSessionAsync(
     @wrap_transact
     async def drop(
         self,
-        *models: Type[DatabaseORMModel] | DatabaseORMModel,
+        *models: type[DatabaseORMModel] | DatabaseORMModel,
         skip: bool = False
     ) -> None:
         """
@@ -1395,7 +1395,7 @@ class DatabaseORMSessionAsync(
 
 
     @wrap_transact
-    async def get(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT, key: Any | tuple[Any]) -> DatabaseORMModelT | None:
+    async def get(self, model: type[DatabaseORMModelT] | DatabaseORMModelT, key: Any | tuple[Any]) -> DatabaseORMModelT | None:
         """
         Asynchronous select records by primary key.
 
@@ -1429,7 +1429,7 @@ class DatabaseORMSessionAsync(
 
 
     @wrap_transact
-    async def gets(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT, *keys: Any | tuple[Any]) -> list[DatabaseORMModelT]:
+    async def gets(self, model: type[DatabaseORMModelT] | DatabaseORMModelT, *keys: Any | tuple[Any]) -> list[DatabaseORMModelT]:
         """
         Asynchronous select records by primary key sequence.
 
@@ -1460,7 +1460,7 @@ class DatabaseORMSessionAsync(
 
 
     @wrap_transact
-    async def all(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> list[DatabaseORMModelT]:
+    async def all(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> list[DatabaseORMModelT]:
         """
         Asynchronous select all records.
 
@@ -1545,7 +1545,7 @@ class DatabaseORMSessionAsync(
 
 
     @overload
-    def select(self, model: Type[DatabaseORMModelT] | DatabaseORMModelT) -> 'DatabaseORMStatementSelectAsync[DatabaseORMModelT]': ...
+    def select(self, model: type[DatabaseORMModelT] | DatabaseORMModelT) -> 'DatabaseORMStatementSelectAsync[DatabaseORMModelT]': ...
 
     select = DatabaseORMSessionSuper.select
 
@@ -1559,7 +1559,7 @@ class DatabaseORMStatementSuper(DatabaseORMBase, Generic[DatabaseORMSessionT]):
     def __init__(
         self,
         sess: DatabaseORMSessionT,
-        model: Type[DatabaseORMModelT]
+        model: type[DatabaseORMModelT]
     ) -> None:
         """
         Build instance attributes.
